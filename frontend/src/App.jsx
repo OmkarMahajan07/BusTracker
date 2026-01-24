@@ -1,10 +1,9 @@
+import { useEffect } from "react";
+import { testFirebaseConnection } from "./firebase";
+
 function App() {
-  return (
-    <div style={{ padding: "2rem" }}>
-      <h1>College Bus Tracker</h1>
-      <p>Frontend initialized successfully.</p>
-    </div>
-  );
+  
+  return <h1>Firebase Test</h1>;
 }
 
 export default App;
