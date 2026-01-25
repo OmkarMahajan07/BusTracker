@@ -1,9 +1,11 @@
-import { useEffect } from "react";
-import { testFirebaseConnection } from "./firebase";
+import Login from "./components/Login";
 
 function App() {
-  
-  return <h1>Firebase Test</h1>;
+  return (
+    <div className="App">
+      <Login />
+    </div>
+  );
 }
 
 export default App;
