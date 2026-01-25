@@ -1,0 +1,101 @@
+:root {
+  --status-active: #4caf50;
+  --status-inactive: #f44336;
+  --bg-dark: #1a1a1a;
+  --text-light: #ffffff;
+}
+
+.driver-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  height: 80vh;
+  padding: 2rem;
+  background-color: var(--bg-dark);
+  color: var(--text-light);
+  text-align: center;
+}
+
+.driver-header {
+  margin-bottom: 2rem;
+}
+
+.driver-header h1 {
+  font-size: 1.5rem;
+  margin: 0;
+}
+
+.bus-id {
+  font-size: 1.2rem;
+  color: #aaa;
+  margin-top: 0.5rem;
+}
+
+.status-ring-container {
+  position: relative;
+  width: 200px;
+  height: 200px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 2rem;
+}
+
+.status-ring {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  border: 4px solid #333;
+  position: absolute;
+  top: 0;
+  left: 0;
+  transition: all 0.5s ease;
+}
+
+.status-ring.active {
+  border-color: var(--status-active);
+  box-shadow: 0 0 20px rgba(76, 175, 80, 0.4);
+}
+
+.status-ring.inactive {
+  border-color: var(--status-inactive);
+  box-shadow: 0 0 20px rgba(244, 67, 54, 0.4);
+}
+
+.status-text {
+  font-size: 1.5rem;
+  font-weight: bold;
+  z-index: 1;
+}
+
+.controls {
+  width: 100%;
+  max-width: 300px;
+}
+
+.toggle-btn {
+  width: 100%;
+  padding: 1.5rem;
+  font-size: 1.2rem;
+  font-weight: bold;
+  border: none;
+  border-radius: 50px;
+  cursor: pointer;
+  transition: transform 0.2s ease, background-color 0.3s;
+  text-transform: uppercase;
+}
+
+.toggle-btn:active {
+  transform: scale(0.95);
+}
+
+.toggle-btn.start {
+  background-color: var(--status-active);
+  color: white;
+}
+
+.toggle-btn.stop {
+  background-color: var(--status-inactive);
+  color: white;
+}
