@@ -1,0 +1,52 @@
+.route-list-container {
+  padding: 20px;
+  max-width: 600px;
+  margin: 0 auto;
+  font-family: 'Inter', sans-serif;
+}
+
+.route-list-container h1 {
+  text-align: center;
+  margin-bottom: 24px;
+  color: #333;
+}
+
+.routes-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.route-card {
+  background: white;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+  border: 1px solid #eee;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.route-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  border-color: #ddd;
+}
+
+.route-card h2 {
+  margin: 0;
+  font-size: 1.2rem;
+  color: #1a1a1a;
+}
+
+.bus-badge {
+  background: #e3f2fd;
+  color: #1565c0;
+  padding: 4px 12px;
+  border-radius: 16px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}

@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useWakeLock } from 'react-screen-wake-lock';
+import { signOut } from "firebase/auth";
+import { auth } from "../firebase";
 // Removed @vis.gl/react-google-maps dependency
 import { startTracking, stopTracking } from '../services/tracker';
 import './Driver.css';
@@ -13,6 +15,10 @@ const Driver = () => {
   const markerRef = useRef(null); // Reference to the user marker
   const watchIdRef = useRef(null); // Reference to the GPS watch ID
   const busId = "BUS-101"; 
+
+  const handleLogout = () => {
+    signOut(auth).catch((error) => console.error("Logout error:", error));
+  };
 
   const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 
@@ -180,8 +186,11 @@ const Driver = () => {
   return (
     <div className="driver-container">
       <div className="driver-header">
-        <h1>Driver Console</h1>
-        <div className="bus-id">ID: {busId}</div>
+        <div>
+          <h1>Driver Console</h1>
+          <div className="bus-id">ID: {busId}</div>
+        </div>
+        <button onClick={handleLogout} className="logout-btn">Sign Out</button>
       </div>
 
       <div className="status-ring-container">

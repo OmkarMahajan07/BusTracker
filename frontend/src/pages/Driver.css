@@ -19,6 +19,25 @@
 
 .driver-header {
   margin-bottom: 1rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.logout-btn {
+  background: #ff5252;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  height: fit-content;
+}
+
+.logout-btn:hover {
+  background: #ff1744;
 }
 
 .driver-header h1 {

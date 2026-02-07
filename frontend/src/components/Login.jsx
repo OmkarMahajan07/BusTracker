@@ -5,32 +5,50 @@ import './Login.css';
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState('passenger'); // Keep for UI, but logic is handled by Auth logic/App.jsx
+  const [role, setRole] = useState('passenger'); 
+  const [isLogin, setIsLogin] = useState(true); // Toggle between Login/Signup
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
 
-  const { login } = useContext(AuthContext);
+  const { login, signup } = useContext(AuthContext);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setSuccessMessage('');
     setIsSubmitting(true);
 
     try {
-      await login(email, password);
-      // Redirect is handled by App.jsx observing user state
+      if (isLogin) {
+        await login(email, password);
+      } else {
+        await signup(email, password);
+        // After signup, we can either auto-login (which firebase does) or show success.
+        // Firebase auto-signs in, so App.jsx will handle redirect.
+      }
     } catch (err) {
-      console.error("Login Error:", err);
-      setError('Failed to sign in. Please check your credentials.');
+      console.error("Auth Error:", err);
+      setError(isLogin 
+        ? 'Failed to sign in. Please check your credentials.' 
+        : 'Failed to create account. Email might be in use.');
       setIsSubmitting(false);
     }
+  };
+
+  const toggleMode = () => {
+    setIsLogin(!isLogin);
+    setError('');
+    setSuccessMessage('');
   };
 
   return (
     <div className="login-container">
       <div className="login-card">
-        <h2>Welcome Back</h2>
-        <p className="login-subtitle">Please sign in to your account</p>
+        <h2>{isLogin ? 'Welcome Back' : 'Create Account'}</h2>
+        <p className="login-subtitle">
+          {isLogin ? 'Please sign in to your account' : 'Sign up to get started'}
+        </p>
         
         {error && <div className="error-message" style={{ color: 'red', marginBottom: '1rem', textAlign: 'center' }}>{error}</div>}
 
@@ -58,6 +76,7 @@ const Login = () => {
               placeholder="Enter your password"
               required
               disabled={isSubmitting}
+              minLength={6}
             />
           </div>
 
@@ -87,8 +106,32 @@ const Login = () => {
           </div>
 
           <button type="submit" className="login-btn" disabled={isSubmitting}>
-            {isSubmitting ? 'Signing in...' : 'Login'}
+            {isSubmitting 
+              ? (isLogin ? 'Signing in...' : 'Creating Account...') 
+              : (isLogin ? 'Login' : 'Sign Up')}
           </button>
+
+          <div className="auth-toggle">
+            <p>
+              {isLogin ? "Don't have an account? " : "Already have an account? "}
+              <button 
+                type="button" 
+                className="toggle-link" 
+                onClick={toggleMode}
+                style={{ 
+                  background: 'none', 
+                  border: 'none', 
+                  color: '#1565c0', 
+                  fontWeight: 'bold', 
+                  cursor: 'pointer', 
+                  padding: 0,
+                  fontSize: 'inherit'
+                }}
+              >
+                {isLogin ? 'Sign Up' : 'Login'}
+              </button>
+            </p>
+          </div>
         </form>
       </div>
     </div>
