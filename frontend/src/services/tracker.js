@@ -1,9 +1,12 @@
+import { ref, set } from "firebase/database";
+import { db } from "../firebase";
+
 /**
  * Tracker Service
  * Handles geolocation tracking for the driver.
  */
 
-export const startTracking = (onUpdate, onError) => {
+export const startTracking = (busId, onUpdate, onError) => {
   if (!navigator.geolocation) {
     if (onError) onError(new Error("Geolocation is not supported by this browser."));
     return null;
@@ -18,12 +21,26 @@ export const startTracking = (onUpdate, onError) => {
   const watchId = navigator.geolocation.watchPosition(
     (position) => {
       const { latitude, longitude, speed } = position.coords;
+      const timestamp = Date.now();
+
+      const locationData = {
+        lat: latitude,
+        lng: longitude,
+        speed,
+        updatedAt: timestamp,
+      };
       
       // Requirement: Console log { lat, lng, speed } on every update
-      console.log("GPS Update:", { lat: latitude, lng: longitude, speed });
+      console.log("GPS Update:", locationData);
+
+      // Write to Firebase
+      const locationRef = ref(db, `buses/${busId}/location`);
+      set(locationRef, locationData)
+        .then(() => console.log("Location sent to Firebase"))
+        .catch((err) => console.error("Firebase write error:", err));
 
       if (onUpdate) {
-        onUpdate({ lat: latitude, lng: longitude, speed });
+        onUpdate(locationData);
       }
     },
     (error) => {

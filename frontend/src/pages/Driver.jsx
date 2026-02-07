@@ -163,7 +163,7 @@ const Driver = () => {
       }
     } else {
       // Start tracking
-      watchIdRef.current = startTracking(handleTrackingUpdate, handleTrackingError);
+      watchIdRef.current = startTracking(busId, handleTrackingUpdate, handleTrackingError);
       setIsTracking(true);
 
       // Request Wake Lock
