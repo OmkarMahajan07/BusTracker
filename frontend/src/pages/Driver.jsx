@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 // Removed @vis.gl/react-google-maps dependency
+import { startTracking, stopTracking } from '../services/tracker';
 import './Driver.css';
 
 const Driver = () => {
@@ -9,6 +10,7 @@ const Driver = () => {
   const mapRef = useRef(null); // Reference to the map div
   const mapInstanceRef = useRef(null); // Reference to the Google Map instance
   const markerRef = useRef(null); // Reference to the user marker
+  const watchIdRef = useRef(null); // Reference to the GPS watch ID
   const busId = "BUS-101"; 
 
   const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
@@ -44,6 +46,10 @@ const Driver = () => {
     return () => {
       // Cleanup global callback
       delete window.initDriverMap;
+      // Stop tracking on unmount
+      if (watchIdRef.current !== null) {
+        stopTracking(watchIdRef.current);
+      }
     };
   }, [GOOGLE_MAPS_API_KEY]);
 
@@ -115,8 +121,36 @@ const Driver = () => {
     );
   };
 
+  const handleTrackingUpdate = (data) => {
+    // Requirements:
+    // 4. Console log { lat, lng, speed } on every update (Handled in tracker.js but also can stay here if needed for debug)
+    // 6. Do NOT update map
+    // 7. Do NOT write to Firebase / Firestore
+    // 8. Do NOT add background services
+    
+    // We can update local state if we want to display speed or troubleshooting info, 
+    // but the requirement says "Live GPS updates logged in console" which is primary.
+    // The tracker.js service already logs it.
+    // We could optionally update currentPosition here if we wanted the map to follow, 
+    // but requirement 6 says "Do NOT update map". So we do nothing here.
+  };
+
+  const handleTrackingError = (error) => {
+    console.error("Tracking error:", error);
+    // Optionally show a toast or error message
+  };
+
   const toggleTracking = () => {
-    setIsTracking((prev) => !prev);
+    if (isTracking) {
+      // Stop tracking
+      stopTracking(watchIdRef.current);
+      watchIdRef.current = null;
+      setIsTracking(false);
+    } else {
+      // Start tracking
+      watchIdRef.current = startTracking(handleTrackingUpdate, handleTrackingError);
+      setIsTracking(true);
+    }
   };
 
   return (
