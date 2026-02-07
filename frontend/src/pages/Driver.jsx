@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useWakeLock } from 'react-screen-wake-lock';
 // Removed @vis.gl/react-google-maps dependency
 import { startTracking, stopTracking } from '../services/tracker';
 import './Driver.css';
@@ -140,16 +141,39 @@ const Driver = () => {
     // Optionally show a toast or error message
   };
 
-  const toggleTracking = () => {
+  const { isSupported, request, release } = useWakeLock({
+    onRequest: () => console.log('Screen Wake Lock: Active'),
+    onRelease: () => console.log('Screen Wake Lock: Released'),
+  });
+
+  const toggleTracking = async () => {
     if (isTracking) {
       // Stop tracking
       stopTracking(watchIdRef.current);
       watchIdRef.current = null;
       setIsTracking(false);
+      
+      // Release Wake Lock
+      if (isSupported) {
+        try {
+          await release();
+        } catch (err) {
+          console.error("Wake Lock Release Error:", err);
+        }
+      }
     } else {
       // Start tracking
       watchIdRef.current = startTracking(handleTrackingUpdate, handleTrackingError);
       setIsTracking(true);
+
+      // Request Wake Lock
+      if (isSupported) {
+        try {
+          await request();
+        } catch (err) {
+          console.error("Wake Lock Request Error:", err);
+        }
+      }
     }
   };
 
