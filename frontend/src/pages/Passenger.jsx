@@ -11,6 +11,7 @@ const Passenger = () => {
   const [busLocation, setBusLocation] = useState(null);
   const [mapError, setMapError] = useState(null);
   const [eta, setEta] = useState(null);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
   
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
@@ -19,6 +20,20 @@ const Passenger = () => {
   // Requirement: Resolve busId.
   const busId = "BUS-101"; 
   const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+
+  // Network Status Listener
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
   
   // 1. Load Google Maps Script
   useEffect(() => {
@@ -82,6 +97,8 @@ const Passenger = () => {
       setMapError("Failed to initialize map");
     }
   };
+
+  // 3. Subscribe to Location & Update Marker
   useEffect(() => {
     if (!busId) return;
 
@@ -152,6 +169,25 @@ const Passenger = () => {
 
   return (
     <div className="passenger-container">
+      {/* Network Status Overlay */}
+      {!isOnline && (
+        <div style={{
+          position: 'absolute', 
+          top: 0, 
+          left: 0, 
+          width: '100%', 
+          backgroundColor: '#d32f2f', 
+          color: 'white', 
+          textAlign: 'center', 
+          padding: '8px',
+          zIndex: 2000,
+          fontSize: '0.9rem',
+          fontWeight: 'bold'
+        }}>
+          Reconnecting...
+        </div>
+      )}
+
       {/* 4.1 Map Container */}
       <div className="passenger-map-container">
         {mapError && <div style={{color: 'red', zIndex: 10}}>{mapError}</div>}

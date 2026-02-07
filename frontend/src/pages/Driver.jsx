@@ -10,6 +10,9 @@ const Driver = () => {
   const [isTracking, setIsTracking] = useState(false);
   const [currentPosition, setCurrentPosition] = useState(null);
   const [mapError, setMapError] = useState(null);
+  const [gpsError, setGpsError] = useState(null);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  
   const mapRef = useRef(null); // Reference to the map div
   const mapInstanceRef = useRef(null); // Reference to the Google Map instance
   const markerRef = useRef(null); // Reference to the user marker
@@ -21,6 +24,20 @@ const Driver = () => {
   };
 
   const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+
+  // Network Status Listener
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   // 1. Load Google Maps Script (Classic Callback Pattern)
   useEffect(() => {
@@ -131,20 +148,17 @@ const Driver = () => {
   const handleTrackingUpdate = (data) => {
     // Requirements:
     // 4. Console log { lat, lng, speed } on every update (Handled in tracker.js but also can stay here if needed for debug)
-    // 6. Do NOT update map
-    // 7. Do NOT write to Firebase / Firestore
-    // 8. Do NOT add background services
-    
-    // We can update local state if we want to display speed or troubleshooting info, 
-    // but the requirement says "Live GPS updates logged in console" which is primary.
-    // The tracker.js service already logs it.
-    // We could optionally update currentPosition here if we wanted the map to follow, 
-    // but requirement 6 says "Do NOT update map". So we do nothing here.
+    console.log("Tracking Update:", data);
+    setGpsError(null); // Clear error on successful update
   };
 
   const handleTrackingError = (error) => {
     console.error("Tracking error:", error);
-    // Optionally show a toast or error message
+    let msg = "GPS Error";
+    if (error.code === 1) msg = "Location access denied. Please enable permission.";
+    else if (error.code === 2) msg = "Position unavailable. Check GPS signal.";
+    else if (error.code === 3) msg = "GPS Timeout.";
+    setGpsError(msg);
   };
 
   const { isSupported, request, release } = useWakeLock({
@@ -169,7 +183,21 @@ const Driver = () => {
       }
     } else {
       // Start tracking
+      setGpsError(null);
+      
+      // Pre-check for geolocation support
+      if (!navigator.geolocation) {
+         setGpsError("Geolocation not supported");
+         return;
+      }
+
       watchIdRef.current = startTracking(busId, handleTrackingUpdate, handleTrackingError);
+      
+      // If startTracking returns null immediately (e.g. no support), don't set tracking true
+      if (watchIdRef.current === null) {
+         return;
+      }
+      
       setIsTracking(true);
 
       // Request Wake Lock
@@ -198,17 +226,19 @@ const Driver = () => {
         <div className="status-text">
           {isTracking ? "ONLINE" : "OFFLINE"}
         </div>
+        {!isOnline && <div style={{color: 'red', fontSize: '0.8rem', marginTop: '4px'}}>NO INTERNET</div>}
       </div>
 
       {/* Map Section */}
       <div className="map-container">
         {mapError && <div className="map-error">{mapError}</div>}
-        {!mapError && !currentPosition && <div className="map-loading">Locating...</div>}
+        {gpsError && <div className="map-error" style={{backgroundColor: '#ffebee', color: '#c62828'}}>{gpsError}</div>}
+        {!mapError && !currentPosition && !gpsError && <div className="map-loading">Locating...</div>}
         
         <div 
           ref={mapRef} 
           className="google-map" 
-          style={{ width: '100%', height: '100%', borderRadius: '12px', display: mapError ? 'none' : 'block' }} 
+          style={{ width: '100%', height: '100%', borderRadius: '12px', display: (mapError || gpsError) ? 'none' : 'block' }} 
         />
       </div>
 
@@ -216,9 +246,12 @@ const Driver = () => {
         <button 
           className={`toggle-btn ${isTracking ? 'stop' : 'start'}`}
           onClick={toggleTracking}
+          disabled={!isOnline || !!mapError} // Disable if offline or critical map error
+          style={{ opacity: (!isOnline || !!mapError) ? 0.6 : 1, cursor: (!isOnline || !!mapError) ? 'not-allowed' : 'pointer'}}
         >
           {isTracking ? "Stop Trip" : "Start Trip"}
         </button>
+        {(!isOnline) && <p style={{fontSize: '0.8rem', color: '#666', marginTop: '8px'}}>Waiting for connection...</p>}
       </div>
     </div>
   );
