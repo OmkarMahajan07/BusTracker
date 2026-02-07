@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Login from "./components/Login";
 import Driver from "./pages/Driver";
 import Passenger from "./pages/Passenger";
+import RouteList from "./pages/RouteList";
 import { AuthContext } from './contexts/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 
@@ -14,7 +15,8 @@ function App() {
   }
 
   const getDashboardPath = (user) => {
-    return user.email && user.email.toLowerCase().includes('driver') ? '/driver' : '/passenger';
+    // Drivers go to /driver, Passengers go to /routes (to select a route first)
+    return user.email && user.email.toLowerCase().includes('driver') ? '/driver' : '/routes';
   };
 
   return (
@@ -37,6 +39,15 @@ function App() {
             } 
           />
           
+          <Route 
+            path="/routes" 
+            element={
+              <ProtectedRoute allowedRoles={['passenger']}>
+                <RouteList />
+              </ProtectedRoute>
+            } 
+          />
+
           <Route 
             path="/passenger" 
             element={
