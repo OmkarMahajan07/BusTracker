@@ -1,9 +1,119 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+// Removed @vis.gl/react-google-maps dependency
 import './Driver.css';
 
 const Driver = () => {
   const [isTracking, setIsTracking] = useState(false);
-  const busId = "BUS-101"; // Mocked for now
+  const [currentPosition, setCurrentPosition] = useState(null);
+  const [mapError, setMapError] = useState(null);
+  const mapRef = useRef(null); // Reference to the map div
+  const mapInstanceRef = useRef(null); // Reference to the Google Map instance
+  const markerRef = useRef(null); // Reference to the user marker
+  const busId = "BUS-101"; 
+
+  const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+
+  // 1. Load Google Maps Script (Classic Callback Pattern)
+  useEffect(() => {
+    if (!GOOGLE_MAPS_API_KEY) {
+      setMapError("Missing Google Maps API Key");
+      return;
+    }
+
+    // Define global callback
+    window.initDriverMap = () => {
+      initMap();
+    };
+
+    if (window.google && window.google.maps) {
+      initMap();
+    } else {
+      const scriptId = 'google-maps-script';
+      if (!document.getElementById(scriptId)) {
+        const script = document.createElement("script");
+        script.id = scriptId;
+        // Use v=weekly and libraries=marker. Callback is initDriverMap.
+        script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&callback=initDriverMap&v=weekly&libraries=marker`;
+        script.async = true;
+        script.defer = true;
+        script.onerror = () => setMapError("Failed to load Google Maps API");
+        document.head.appendChild(script);
+      }
+    }
+
+    return () => {
+      // Cleanup global callback
+      delete window.initDriverMap;
+    };
+  }, [GOOGLE_MAPS_API_KEY]);
+
+  // 2. Initialize Map
+  const initMap = async () => {
+    if (!mapRef.current) return;
+    if (mapInstanceRef.current) return;
+
+    try {
+      // Create Map
+      mapInstanceRef.current = new window.google.maps.Map(mapRef.current, {
+        center: { lat: 0, lng: 0 },
+        zoom: 15,
+        mapId: "DEMO_MAP_ID", // Required for AdvancedMarkerElement
+        disableDefaultUI: true,
+      });
+
+      // Attempt to get location
+      getLocation();
+    } catch (err) {
+      console.error("Map Init Error:", err);
+      setMapError("Failed to initialize map");
+    }
+  };
+
+  // 3. Get User Location
+  const getLocation = () => {
+    if (!navigator.geolocation) {
+      setMapError("Geolocation is not supported by your browser.");
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords;
+        const pos = { lat: latitude, lng: longitude };
+        
+        setCurrentPosition(pos);
+        setMapError(null);
+
+        if (mapInstanceRef.current) {
+          mapInstanceRef.current.setCenter(pos);
+
+          // Use AdvancedMarkerElement if available (it should be with v=weekly + mapId)
+          if (!markerRef.current) {
+             const { AdvancedMarkerElement, PinElement } = await window.google.maps.importLibrary("marker");
+             
+             const pin = new PinElement({
+                background: "#FBBC04",
+                glyphColor: "#000",
+                borderColor: "#000",
+             });
+
+             markerRef.current = new AdvancedMarkerElement({
+               position: pos,
+               map: mapInstanceRef.current,
+               title: "Your Location",
+               content: pin.element,
+             });
+          } else {
+            markerRef.current.position = pos;
+          }
+        }
+      },
+      (error) => {
+        console.error("Geolocation error:", error);
+        setMapError("Unable to retrieve location");
+      }
+    );
+  };
 
   const toggleTracking = () => {
     setIsTracking((prev) => !prev);
@@ -21,6 +131,18 @@ const Driver = () => {
         <div className="status-text">
           {isTracking ? "ONLINE" : "OFFLINE"}
         </div>
+      </div>
+
+      {/* Map Section */}
+      <div className="map-container">
+        {mapError && <div className="map-error">{mapError}</div>}
+        {!mapError && !currentPosition && <div className="map-loading">Locating...</div>}
+        
+        <div 
+          ref={mapRef} 
+          className="google-map" 
+          style={{ width: '100%', height: '100%', borderRadius: '12px', display: mapError ? 'none' : 'block' }} 
+        />
       </div>
 
       <div className="controls">

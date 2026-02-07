@@ -10,15 +10,15 @@
   flex-direction: column;
   align-items: center;
   justify-content: space-between;
-  height: 80vh;
-  padding: 2rem;
+  height: 90vh; /* Increased height for better mobile fit */
+  padding: 1rem;
   background-color: var(--bg-dark);
   color: var(--text-light);
   text-align: center;
 }
 
 .driver-header {
-  margin-bottom: 2rem;
+  margin-bottom: 1rem;
 }
 
 .driver-header h1 {
@@ -29,17 +29,18 @@
 .bus-id {
   font-size: 1.2rem;
   color: #aaa;
-  margin-top: 0.5rem;
+  margin-top: 0.25rem;
 }
 
+/* Compact status ring for when map is present */
 .status-ring-container {
   position: relative;
-  width: 200px;
-  height: 200px;
+  width: 120px; /* Smaller than before */
+  height: 120px;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 2rem;
+  margin-bottom: 1rem;
 }
 
 .status-ring {
@@ -55,28 +56,47 @@
 
 .status-ring.active {
   border-color: var(--status-active);
-  box-shadow: 0 0 20px rgba(76, 175, 80, 0.4);
+  box-shadow: 0 0 15px rgba(76, 175, 80, 0.4);
 }
 
 .status-ring.inactive {
   border-color: var(--status-inactive);
-  box-shadow: 0 0 20px rgba(244, 67, 54, 0.4);
+  box-shadow: 0 0 15px rgba(244, 67, 54, 0.4);
 }
 
 .status-text {
-  font-size: 1.5rem;
+  font-size: 1rem;
   font-weight: bold;
   z-index: 1;
+}
+
+.map-container {
+  width: 100%;
+  flex-grow: 1; /* Take up remaining space */
+  border-radius: 12px;
+  overflow: hidden;
+  margin-bottom: 1rem;
+  background-color: #333; /* Placeholder color */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 300px;
+}
+
+.map-error, .map-loading {
+  color: #fff;
+  padding: 1rem;
 }
 
 .controls {
   width: 100%;
   max-width: 300px;
+  margin-bottom: 1rem;
 }
 
 .toggle-btn {
   width: 100%;
-  padding: 1.5rem;
+  padding: 1rem;
   font-size: 1.2rem;
   font-weight: bold;
   border: none;
