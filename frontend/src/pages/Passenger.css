@@ -1,0 +1,55 @@
+.passenger-container {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Full-screen map placeholder */
+.passenger-map-container {
+  flex-grow: 1;
+  width: 100%;
+  background-color: #e0e0e0; /* Grey placeholder */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #757575;
+  font-size: 1.2rem;
+  font-weight: 500;
+}
+
+/* Bottom Info Card */
+.info-card {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  background-color: white;
+  border-top-left-radius: 20px;
+  border-top-right-radius: 20px;
+  padding: 24px;
+  box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.1);
+  z-index: 100;
+  transition: transform 0.3s ease-out;
+}
+
+.info-card h2 {
+  margin: 0 0 8px 0;
+  font-size: 1.4rem;
+  color: #1a1a1a;
+}
+
+.eta-text {
+  font-size: 1.1rem;
+  color: #1565c0; /* Blue for emphasis */
+  font-weight: 600;
+  margin: 0;
+}
+
+.route-info {
+  margin-top: 8px;
+  font-size: 0.9rem;
+  color: #666;
+}
