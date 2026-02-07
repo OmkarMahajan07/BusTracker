@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { ref, onValue } from 'firebase/database';
 import { db } from '../firebase';
+import { getDistanceKm } from '../utils/math';
 import './Passenger.css';
 
 const Passenger = () => {
@@ -9,6 +10,7 @@ const Passenger = () => {
   const routeId = searchParams.get('route');
   const [busLocation, setBusLocation] = useState(null);
   const [mapError, setMapError] = useState(null);
+  const [eta, setEta] = useState(null);
   
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
@@ -17,7 +19,7 @@ const Passenger = () => {
   // Requirement: Resolve busId.
   const busId = "BUS-101"; 
   const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
-
+  
   // 1. Load Google Maps Script
   useEffect(() => {
     if (!GOOGLE_MAPS_API_KEY) {
@@ -45,10 +47,7 @@ const Passenger = () => {
         script.onerror = () => setMapError("Failed to load Google Maps API");
         document.head.appendChild(script);
       } else {
-        // If script already exists (e.g. from Driver page), just wait/check or manually trigger
-        // In SPA, global 'initPassengerMap' might not be called if script loaded previously.
-        // We will try to init immediately if google is ready.
-        if (window.google && window.google.maps) {
+         if (window.google && window.google.maps) {
           initMap();
         }
       }
@@ -83,8 +82,6 @@ const Passenger = () => {
       setMapError("Failed to initialize map");
     }
   };
-
-  // 3. Subscribe to Location & Update Marker
   useEffect(() => {
     if (!busId) return;
 
@@ -95,6 +92,7 @@ const Passenger = () => {
       if (data) {
         setBusLocation(data);
         updateMarker(data);
+        calculateEta(data);
       }
     }, (error) => {
       console.error("Location subscription error:", error);
@@ -104,22 +102,30 @@ const Passenger = () => {
     return () => unsubscribe();
   }, [busId]);
 
+  // 4a. Calculate ETA
+  const calculateEta = (location) => {
+    if (!location || !location.lat || !location.lng) return;
+    
+    // Distance in km
+    const distanceKm = getDistanceKm(location.lat, location.lng, DESTINATION.lat, DESTINATION.lng);
+    
+    // Speed: GPS gives m/s. Convert to km/h. Fallback to 30km/h.
+    let speedKmh = (location.speed || 0) * 3.6;
+    if (speedKmh < 5) speedKmh = 30; // Fallback if stopped or slow
+
+    // Time = Distance / Speed
+    const hours = distanceKm / speedKmh;
+    const minutes = Math.ceil(hours * 60);
+
+    setEta(minutes < 1 ? 1 : minutes);
+  };
+
   // 4. Update Marker Helper
   const updateMarker = async (location) => {
+    // ... (existing updateMarker logic)
     if (!mapInstanceRef.current || !window.google) return;
 
     const pos = { lat: location.lat, lng: location.lng };
-
-    // Center map on FIRST update only, or always? 
-    // "Center map on bus location" - usually means initially or if user tracks.
-    // For now, let's strictly follow: "Center map on bus location".
-    // I'll update center if it's the first time marker is added, to valid jump.
-    // Or if map center is at default 0,0 (but I set default to Goa).
-    // Let's just panTo on every update for now to keep bus in view, 
-    // providing a "Live Tracking" feel.
-    // mapInstanceRef.current.panTo(pos); 
-    // Actually, forcing panTo might be annoying if user wants to look around.
-    // Better: Only pan if it's the first update (marker doesn't exist yet).
     
     if (!markerRef.current) {
        mapInstanceRef.current.setCenter(pos);
@@ -155,7 +161,7 @@ const Passenger = () => {
           style={{ width: '100%', height: '100%' }} 
         />
         
-        {/* Overlay Debug Data (Optional, kept for now but made smaller/hidden if map works) */}
+        {/* Overlay Debug Data */}
         {!mapInstanceRef.current && !mapError && (
              <p>Loading Map...</p>
         )}
@@ -171,7 +177,9 @@ const Passenger = () => {
              </span>
           )}
         </div>
-        <p className="eta-text">ETA: Calculating...</p>
+        <p className="eta-text">
+            {eta !== null ? `ETA: ${eta} mins` : "ETA: Calculating..."}
+        </p>
         <p className="route-info">Route ID: {routeId || "None Selected"}</p>
       </div>
     </div>
