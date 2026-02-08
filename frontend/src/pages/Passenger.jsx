@@ -13,10 +13,12 @@ const Passenger = () => {
   const [mapError, setMapError] = useState(null);
   const [eta, setEta] = useState(null);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [routeStops, setRouteStops] = useState([]);
   
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const markerRef = useRef(null);
+  const routePolylineRef = useRef(null);
 
   // Resolve route from URL
   const route = DEMO_ROUTES[routeId];
@@ -122,6 +124,42 @@ const Passenger = () => {
     return () => unsubscribe();
   }, [busId]);
 
+  // Subscribe to route stops from Firebase
+  useEffect(() => {
+    if (!routeId) {
+      console.log('[Route Stops] No routeId provided');
+      return;
+    }
+
+    console.log('[Route Stops] Subscribing to:', `routes/${routeId}/stops`);
+    const routeRef = ref(db, `routes/${routeId}/stops`);
+
+    const unsubscribe = onValue(routeRef, (snapshot) => {
+      const data = snapshot.val();
+      console.log('[Route Stops] Received data:', data);
+      if (data) {
+        const stopsArray = Object.values(data);
+        console.log('[Route Stops] Processed stops:', stopsArray.length, stopsArray);
+        setRouteStops(stopsArray);
+      } else {
+        console.warn('[Route Stops] No stops data found in Firebase');
+      }
+    });
+
+    return () => unsubscribe();
+  }, [routeId]);
+
+  // Draw route polyline when stops are loaded
+  useEffect(() => {
+    console.log('[Polyline] routeStops changed:', routeStops.length);
+    if (routeStops.length && mapInstanceRef.current) {
+      console.log('[Polyline] Calling drawRoutePath');
+      drawRoutePath(routeStops);
+    } else {
+      console.log('[Polyline] Skipping draw - stops:', routeStops.length, 'map:', !!mapInstanceRef.current);
+    }
+  }, [routeStops, mapInstanceRef.current]);
+
   // 4a. Calculate ETA
   const calculateEta = (location) => {
     if (!location || !location.lat || !location.lng) return;
@@ -139,6 +177,57 @@ const Passenger = () => {
     const minutes = Math.ceil(hours * 60);
 
     setEta(minutes < 1 ? 1 : minutes);
+  };
+
+  // Draw route path polyline
+  const drawRoutePath = async (stops) => {
+    console.log('[drawRoutePath] Called with stops:', stops.length);
+    
+    if (!mapInstanceRef.current) {
+      console.error('[drawRoutePath] Map not initialized yet');
+      return;
+    }
+    
+    if (!window.google || !window.google.maps) {
+      console.error('[drawRoutePath] Google Maps API not loaded');
+      return;
+    }
+    
+    if (!stops.length) {
+      console.warn('[drawRoutePath] No stops to draw');
+      return;
+    }
+
+    const path = stops.map(stop => ({
+      lat: stop.lat,
+      lng: stop.lng,
+    }));
+    
+    console.log('[drawRoutePath] Path coordinates:', path);
+
+    if (routePolylineRef.current) {
+      console.log('[drawRoutePath] Removing old polyline');
+      routePolylineRef.current.setMap(null);
+    }
+
+    console.log('[drawRoutePath] Creating new polyline');
+    routePolylineRef.current = new google.maps.Polyline({
+      path,
+      geodesic: true,
+      strokeColor: "#2563EB",
+      strokeOpacity: 0.8,
+      strokeWeight: 4,
+      zIndex: 1, // Ensure it's below the marker
+    });
+
+    routePolylineRef.current.setMap(mapInstanceRef.current);
+    console.log('[drawRoutePath] Polyline added to map');
+    
+    // Fit map bounds to show entire route
+    const bounds = new google.maps.LatLngBounds();
+    path.forEach(point => bounds.extend(point));
+    mapInstanceRef.current.fitBounds(bounds);
+    console.log('[drawRoutePath] Map bounds adjusted to show route');
   };
 
   // 4. Update Marker Helper
