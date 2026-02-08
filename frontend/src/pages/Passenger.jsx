@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { ref, onValue } from 'firebase/database';
 import { db } from '../firebase';
 import { getDistanceKm } from '../utils/math';
+import { DEMO_ROUTES } from '../utils/constants';
 import './Passenger.css';
 
 const Passenger = () => {
@@ -17,8 +18,10 @@ const Passenger = () => {
   const mapInstanceRef = useRef(null);
   const markerRef = useRef(null);
 
-  // Requirement: Resolve busId.
-  const busId = "BUS-101"; 
+  // Resolve route from URL
+  const route = DEMO_ROUTES[routeId];
+  const DESTINATION = route?.destination;
+  const busId = route?.busId || "BUS-101";
   const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 
   // Network Status Listener
@@ -122,6 +125,7 @@ const Passenger = () => {
   // 4a. Calculate ETA
   const calculateEta = (location) => {
     if (!location || !location.lat || !location.lng) return;
+    if (!DESTINATION) return; // Safe guard: no destination = no ETA
     
     // Distance in km
     const distanceKm = getDistanceKm(location.lat, location.lng, DESTINATION.lat, DESTINATION.lng);
