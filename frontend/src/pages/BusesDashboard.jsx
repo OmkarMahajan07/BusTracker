@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
 import { Bus, MapPin, Clock } from "lucide-react";
+import { Link } from "react-router-dom";
 import vvceLogo from "../assets/vvce.jpeg";
 
 export default function BusesDashboard() {
@@ -54,15 +55,15 @@ export default function BusesDashboard() {
         </motion.div>
 
         {/* Bus Cards */}
-        <div className="space-y-4">
+        <div>
           {buses.map((bus, index) => (
-            <motion.div
-              key={bus.number}
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.5, delay: index * 0.1 }}
-              className="rounded-2xl p-6 bg-white/10 backdrop-blur border border-white/20 shadow-xl hover:bg-white/15 transition-colors"
-            >
+            <Link key={bus.number} to={`/bus/${bus.number}`} className="block mb-8 last:mb-0">
+              <motion.div
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.5, delay: index * 0.1 }}
+                className="rounded-2xl p-6 bg-white/10 backdrop-blur border border-white/20 shadow-xl hover:bg-white/15 hover:scale-[1.02] transition-all cursor-pointer"
+              >
               <div className="flex items-center justify-between gap-6">
                 {/* Bus Number */}
                 <div className="flex items-center gap-4">
@@ -110,6 +111,7 @@ export default function BusesDashboard() {
                 </div>
               </div>
             </motion.div>
+            </Link>
           ))}
         </div>
       </div>
