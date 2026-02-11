@@ -1,5 +1,10 @@
 import React, { useContext } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import Home from "./pages/Home";
+import StudentLogin from "./pages/StudentLogin";
+import StudentSetup from "./pages/StudentSetup";
+import BusesDashboard from "./pages/BusesDashboard";
+import DriverLogin from "./pages/DriverLogin";
 import Login from "./components/Login";
 import Driver from "./pages/Driver";
 import Passenger from "./pages/Passenger";
@@ -23,10 +28,28 @@ function App() {
     <BrowserRouter>
       <div className="App">
         <Routes>
-          {/* Public Route - Redirect to dashboard if already logged in */}
+          {/* Home Route - Landing page, redirect to dashboard if already logged in */}
           <Route 
             path="/" 
-            element={user ? <Navigate to={getDashboardPath(user)} replace /> : <Login />} 
+            element={user ? <Navigate to={getDashboardPath(user)} replace /> : <Home />} 
+          />
+
+          {/* Login Routes */}
+          <Route 
+            path="/student-login" 
+            element={!user ? <StudentLogin /> : <Navigate to="/routes" replace />} 
+          />
+          <Route 
+            path="/driver-login" 
+            element={!user ? <DriverLogin /> : <Navigate to="/driver" replace />} 
+          />
+          <Route 
+            path="/student-setup" 
+            element={<StudentSetup />} 
+          />
+          <Route 
+            path="/buses" 
+            element={<BusesDashboard />} 
           />
 
           {/* Protected Routes */}
