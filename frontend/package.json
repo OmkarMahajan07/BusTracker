@@ -10,6 +10,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@vitejs/plugin-basic-ssl": "^2.1.4",
+    "dotenv": "^17.2.4",
     "firebase": "^12.8.0",
     "lucide-react": "^0.563.0",
     "react": "^19.2.0",

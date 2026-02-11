@@ -14,11 +14,15 @@ const Passenger = () => {
   const [eta, setEta] = useState(null);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [routeStops, setRouteStops] = useState([]);
+  const [isGeocodingStops, setIsGeocodingStops] = useState(false);
   
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const markerRef = useRef(null);
   const routePolylineRef = useRef(null);
+  const directionsRendererRef = useRef(null);
+  const directionsServiceRef = useRef(null);
+  const stopMarkersRef = useRef([]);
 
   // Resolve route from URL
   const route = DEMO_ROUTES[routeId];
@@ -97,6 +101,19 @@ const Passenger = () => {
         fullscreenControl: false,
       });
 
+      // Initialize Directions API services
+      directionsServiceRef.current = new google.maps.DirectionsService();
+      directionsRendererRef.current = new google.maps.DirectionsRenderer({
+        map: mapInstanceRef.current,
+        suppressMarkers: true, // We already show bus marker
+        polylineOptions: {
+          strokeColor: "#2563EB",
+          strokeOpacity: 0.8,
+          strokeWeight: 5,
+          zIndex: 1, // Ensure route is below the bus marker
+        },
+      });
+
     } catch (err) {
       console.error("Map Init Error:", err);
       setMapError("Failed to initialize map");
@@ -134,13 +151,60 @@ const Passenger = () => {
     console.log('[Route Stops] Subscribing to:', `routes/${routeId}/stops`);
     const routeRef = ref(db, `routes/${routeId}/stops`);
 
-    const unsubscribe = onValue(routeRef, (snapshot) => {
+    const unsubscribe = onValue(routeRef, async (snapshot) => {
       const data = snapshot.val();
       console.log('[Route Stops] Received data:', data);
       if (data) {
         const stopsArray = Object.values(data);
         console.log('[Route Stops] Processed stops:', stopsArray.length, stopsArray);
-        setRouteStops(stopsArray);
+        
+        // Check if stops need geocoding (only have names, no coordinates)
+        const needsGeocoding = stopsArray.some(stop => !stop.lat || !stop.lng);
+        
+        if (needsGeocoding && window.google && window.google.maps) {
+          console.log('[Geocoding] Stops need geocoding, starting...');
+          setIsGeocodingStops(true);
+          
+          try {
+            const geocodedStops = await Promise.all(
+              stopsArray.map(async (stop, index) => {
+                // If stop already has coordinates, use them (backward compatible)
+                if (stop.lat && stop.lng) {
+                  console.log(`[Geocoding] Stop ${index} already has coordinates`);
+                  return stop;
+                }
+                
+                // Otherwise, geocode the name
+                if (stop.name) {
+                  try {
+                    const coords = await geocodeStopName(stop.name);
+                    console.log(`[Geocoding] ${stop.name} →`, coords);
+                    return { ...stop, ...coords };
+                  } catch (error) {
+                    console.error(`[Geocoding] Failed for ${stop.name}:`, error);
+                    // Return original stop without coordinates if geocoding fails
+                    return stop;
+                  }
+                }
+                
+                return stop;
+              })
+            );
+            
+            // Filter out stops that failed to geocode (no coordinates)
+            const validStops = geocodedStops.filter(stop => stop.lat && stop.lng);
+            console.log('[Geocoding] Successfully geocoded', validStops.length, 'stops');
+            setRouteStops(validStops);
+          } catch (error) {
+            console.error('[Geocoding] Error:', error);
+            setMapError('Failed to geocode stops');
+          } finally {
+            setIsGeocodingStops(false);
+          }
+        } else {
+          // Stops already have coordinates, use them directly
+          setRouteStops(stopsArray);
+        }
       } else {
         console.warn('[Route Stops] No stops data found in Firebase');
       }
@@ -149,16 +213,40 @@ const Passenger = () => {
     return () => unsubscribe();
   }, [routeId]);
 
-  // Draw route polyline when stops are loaded
+  // Cleanup stop markers on unmount
   useEffect(() => {
-    console.log('[Polyline] routeStops changed:', routeStops.length);
-    if (routeStops.length && mapInstanceRef.current) {
-      console.log('[Polyline] Calling drawRoutePath');
-      drawRoutePath(routeStops);
-    } else {
-      console.log('[Polyline] Skipping draw - stops:', routeStops.length, 'map:', !!mapInstanceRef.current);
-    }
-  }, [routeStops, mapInstanceRef.current]);
+    return () => {
+      stopMarkersRef.current.forEach(marker => marker.setMap(null));
+      stopMarkersRef.current = [];
+    };
+  }, []);
+
+  // Draw route using Directions API when destination is available
+  useEffect(() => {
+    if (!DESTINATION || !mapInstanceRef.current || !routeStops.length) return;
+
+    // Origin: First stop, fallback to VVCE College
+    const origin = routeStops.length > 0 
+      ? { lat: routeStops[0].lat, lng: routeStops[0].lng }
+      : { lat: 12.3525, lng: 76.6186 }; // VVCE College fallback
+
+    // Waypoints: All intermediate stops (exclude first and last)
+    const waypoints = routeStops.length > 2
+      ? routeStops.slice(1, -1).map(stop => ({
+          location: { lat: stop.lat, lng: stop.lng },
+          stopover: true,
+        }))
+      : [];
+
+    // Destination: Last stop or DESTINATION constant
+    const destination = routeStops.length > 1
+      ? { lat: routeStops[routeStops.length - 1].lat, lng: routeStops[routeStops.length - 1].lng }
+      : DESTINATION;
+
+    console.log('[Route] Drawing route with', waypoints.length, 'waypoints');
+    drawRouteUsingDirections(origin, waypoints, destination);
+    renderStopMarkers(routeStops);
+  }, [DESTINATION, routeStops, mapInstanceRef.current]);
 
   // 4a. Calculate ETA
   const calculateEta = (location) => {
@@ -179,60 +267,115 @@ const Passenger = () => {
     setEta(minutes < 1 ? 1 : minutes);
   };
 
-  // Draw route path polyline
-  const drawRoutePath = async (stops) => {
-    console.log('[drawRoutePath] Called with stops:', stops.length);
-    
-    if (!mapInstanceRef.current) {
-      console.error('[drawRoutePath] Map not initialized yet');
-      return;
-    }
-    
-    if (!window.google || !window.google.maps) {
-      console.error('[drawRoutePath] Google Maps API not loaded');
-      return;
-    }
-    
-    if (!stops.length) {
-      console.warn('[drawRoutePath] No stops to draw');
+  // Geocode place name to coordinates using Google Maps Geocoding API
+  const geocodeStopName = async (placeName) => {
+    return new Promise((resolve, reject) => {
+      if (!window.google || !window.google.maps) {
+        reject(new Error('Google Maps API not loaded'));
+        return;
+      }
+
+      const geocoder = new google.maps.Geocoder();
+      
+      geocoder.geocode({ address: placeName }, (results, status) => {
+        if (status === 'OK' && results[0]) {
+          const location = results[0].geometry.location;
+          resolve({ lat: location.lat(), lng: location.lng() });
+        } else {
+          reject(new Error(`Geocoding failed for: ${placeName} (Status: ${status})`));
+        }
+      });
+    });
+  };
+
+  // Draw route using Directions API to show real road paths with waypoints
+  const drawRouteUsingDirections = (origin, waypoints, destination) => {
+    if (!directionsServiceRef.current || !directionsRendererRef.current) {
+      console.warn('[Directions] Services not initialized yet');
       return;
     }
 
-    const path = stops.map(stop => ({
-      lat: stop.lat,
-      lng: stop.lng,
-    }));
-    
-    console.log('[drawRoutePath] Path coordinates:', path);
+    console.log('[Directions] Requesting route with', waypoints.length, 'waypoints');
+    console.log('[Directions] From', origin, 'to', destination);
 
-    if (routePolylineRef.current) {
-      console.log('[drawRoutePath] Removing old polyline');
-      routePolylineRef.current.setMap(null);
-    }
+    directionsServiceRef.current.route(
+      {
+        origin,
+        destination,
+        waypoints,
+        travelMode: google.maps.TravelMode.DRIVING,
+        optimizeWaypoints: false, // Keep stops in order
+      },
+      (result, status) => {
+        if (status === "OK") {
+          console.log('[Directions] Route received successfully');
+          directionsRendererRef.current.setDirections(result);
+          
+          // Fit map to show the entire route
+          const bounds = result.routes[0].bounds;
+          mapInstanceRef.current.fitBounds(bounds);
+        } else {
+          console.error('[Directions] Request failed:', status);
+          console.error('Origin:', origin, 'Waypoints:', waypoints.length, 'Destination:', destination);
+        }
+      }
+    );
+  };
 
-    console.log('[drawRoutePath] Creating new polyline');
-    routePolylineRef.current = new google.maps.Polyline({
-      path,
-      geodesic: true,
-      strokeColor: "#2563EB",
-      strokeOpacity: 0.8,
-      strokeWeight: 4,
-      zIndex: 1, // Ensure it's below the marker
+  // Render stop markers on the map
+  const renderStopMarkers = (stops) => {
+    if (!mapInstanceRef.current || !stops.length) return;
+
+    // Clear existing stop markers
+    stopMarkersRef.current.forEach(marker => marker.setMap(null));
+    stopMarkersRef.current = [];
+
+    console.log('[Stop Markers] Rendering', stops.length, 'markers');
+
+    stops.forEach((stop, index) => {
+      const isFirst = index === 0;
+      const isLast = index === stops.length - 1;
+
+      // Color coding: Green for start, Red for destination, Blue for intermediate
+      let markerColor = '#2196F3'; // Blue for intermediate stops
+      let label = String(index + 1);
+
+      if (isFirst) {
+        markerColor = '#4CAF50'; // Green for start
+        label = 'S';
+      } else if (isLast) {
+        markerColor = '#F44336'; // Red for destination
+        label = 'D';
+      }
+
+      const marker = new google.maps.Marker({
+        position: { lat: stop.lat, lng: stop.lng },
+        map: mapInstanceRef.current,
+        title: stop.name || `Stop ${index + 1}`,
+        label: {
+          text: label,
+          color: 'white',
+          fontWeight: 'bold',
+        },
+        icon: {
+          path: google.maps.SymbolPath.CIRCLE,
+          scale: 10,
+          fillColor: markerColor,
+          fillOpacity: 1,
+          strokeColor: 'white',
+          strokeWeight: 2,
+        },
+        zIndex: isFirst || isLast ? 3 : 2, // Start/Dest higher than intermediate
+      });
+
+      stopMarkersRef.current.push(marker);
     });
 
-    routePolylineRef.current.setMap(mapInstanceRef.current);
-    console.log('[drawRoutePath] Polyline added to map');
-    
-    // Fit map bounds to show entire route
-    const bounds = new google.maps.LatLngBounds();
-    path.forEach(point => bounds.extend(point));
-    mapInstanceRef.current.fitBounds(bounds);
-    console.log('[drawRoutePath] Map bounds adjusted to show route');
+    console.log('[Stop Markers] Rendered', stopMarkersRef.current.length, 'markers');
   };
 
   // 4. Update Marker Helper
   const updateMarker = async (location) => {
-    // ... (existing updateMarker logic)
     if (!mapInstanceRef.current || !window.google) return;
 
     const pos = { lat: location.lat, lng: location.lng };
@@ -240,23 +383,31 @@ const Passenger = () => {
     if (!markerRef.current) {
        mapInstanceRef.current.setCenter(pos);
        
-       const { AdvancedMarkerElement, PinElement } = await window.google.maps.importLibrary("marker");
-       
-       const pin = new PinElement({
-          background: "#4285F4",
-          glyphColor: "#FFF",
-          borderColor: "#FFF",
-          scale: 1.1,
-       });
+       // Custom yellow bus icon image
+       const busIcon = {
+         url: '/bus-icon.png', // Yellow bus top-down view (transparent background)
+         scaledSize: new google.maps.Size(60, 60), // Larger size for better visibility
+         anchor: new google.maps.Point(30, 30), // Center point (half of size)
+         rotation: location.heading || 0, // Rotate based on bus heading if available
+       };
 
-       markerRef.current = new AdvancedMarkerElement({
+       markerRef.current = new google.maps.Marker({
          position: pos,
          map: mapInstanceRef.current,
          title: busId,
-         content: pin.element,
+         icon: busIcon,
+         zIndex: 10, // Ensure bus marker is above all stop markers
+         optimized: false, // Required for rotation
        });
     } else {
-      markerRef.current.position = pos;
+      markerRef.current.setPosition(pos);
+      
+      // Update rotation if heading changes
+      if (location.heading !== undefined && markerRef.current.getIcon()) {
+        const currentIcon = markerRef.current.getIcon();
+        currentIcon.rotation = location.heading;
+        markerRef.current.setIcon(currentIcon);
+      }
     }
   };
 
