@@ -1,31 +1,33 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useWakeLock } from 'react-screen-wake-lock';
+import { motion } from 'framer-motion';
 import { signOut } from "firebase/auth";
 import { auth } from "../firebase";
-// Removed @vis.gl/react-google-maps dependency
 import { startTracking, stopTracking } from '../services/tracker';
-import './Driver.css';
+import vvceLogo from "../assets/vvce.jpeg";
 
 const Driver = () => {
+  const navigate = useNavigate();
   const [isTracking, setIsTracking] = useState(false);
   const [currentPosition, setCurrentPosition] = useState(null);
   const [mapError, setMapError] = useState(null);
   const [gpsError, setGpsError] = useState(null);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
-  const [selectedBus, setSelectedBus] = useState("BUS-101"); // Bus selection state
+  const [selectedBus, setSelectedBus] = useState("BUS-101");
+  const [lastUpdate, setLastUpdate] = useState(null);
   
-  const mapRef = useRef(null); // Reference to the map div
-  const mapInstanceRef = useRef(null); // Reference to the Google Map instance
-  const markerRef = useRef(null); // Reference to the user marker
-  const watchIdRef = useRef(null); // Reference to the GPS watch ID
+  const mapRef = useRef(null);
+  const mapInstanceRef = useRef(null);
+  const markerRef = useRef(null);
+  const watchIdRef = useRef(null);
   
-  const busId = selectedBus; // Use selected bus ID
+  const busId = selectedBus;
+  const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 
   const handleLogout = () => {
     signOut(auth).catch((error) => console.error("Logout error:", error));
   };
-
-  const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 
   // Network Status Listener
   useEffect(() => {
@@ -41,14 +43,13 @@ const Driver = () => {
     };
   }, []);
 
-  // 1. Load Google Maps Script (Classic Callback Pattern)
+  // Load Google Maps Script
   useEffect(() => {
     if (!GOOGLE_MAPS_API_KEY) {
       setMapError("Missing Google Maps API Key");
       return;
     }
 
-    // Define global callback
     window.initDriverMap = () => {
       initMap();
     };
@@ -60,7 +61,6 @@ const Driver = () => {
       if (!document.getElementById(scriptId)) {
         const script = document.createElement("script");
         script.id = scriptId;
-        // Use v=weekly and libraries=marker. Callback is initDriverMap.
         script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&callback=initDriverMap&v=weekly&libraries=marker`;
         script.async = true;
         script.defer = true;
@@ -70,30 +70,29 @@ const Driver = () => {
     }
 
     return () => {
-      // Cleanup global callback
       delete window.initDriverMap;
-      // Stop tracking on unmount
       if (watchIdRef.current !== null) {
         stopTracking(watchIdRef.current);
       }
     };
   }, [GOOGLE_MAPS_API_KEY]);
 
-  // 2. Initialize Map
+  // Initialize Map
   const initMap = async () => {
-    if (!mapRef.current) return;
-    if (mapInstanceRef.current) return;
+    if (!mapRef.current || mapInstanceRef.current) return;
 
     try {
-      // Create Map
       mapInstanceRef.current = new window.google.maps.Map(mapRef.current, {
-        center: { lat: 0, lng: 0 },
+        center: { lat: 12.2958, lng: 76.6394 }, // Mysuru default
         zoom: 15,
-        mapId: "DEMO_MAP_ID", // Required for AdvancedMarkerElement
-        disableDefaultUI: true,
+        mapId: "DRIVER_MAP_ID",
+        disableDefaultUI: false,
+        zoomControl: true,
+        streetViewControl: false,
+        mapTypeControl: false,
+        fullscreenControl: true,
       });
 
-      // Attempt to get location
       getLocation();
     } catch (err) {
       console.error("Map Init Error:", err);
@@ -101,7 +100,7 @@ const Driver = () => {
     }
   };
 
-  // 3. Get User Location
+  // Get User Location
   const getLocation = () => {
     if (!navigator.geolocation) {
       setMapError("Geolocation is not supported by your browser.");
@@ -119,39 +118,43 @@ const Driver = () => {
         if (mapInstanceRef.current) {
           mapInstanceRef.current.setCenter(pos);
 
-          // Use AdvancedMarkerElement if available (it should be with v=weekly + mapId)
           if (!markerRef.current) {
-             const { AdvancedMarkerElement, PinElement } = await window.google.maps.importLibrary("marker");
-             
-             const pin = new PinElement({
-                background: "#FBBC04",
-                glyphColor: "#000",
-                borderColor: "#000",
-             });
-
-             markerRef.current = new AdvancedMarkerElement({
-               position: pos,
-               map: mapInstanceRef.current,
-               title: "Your Location",
-               content: pin.element,
-             });
+            // Use standard Marker with bus icon instead of AdvancedMarkerElement
+            markerRef.current = new google.maps.Marker({
+              position: pos,
+              map: mapInstanceRef.current,
+              title: "Your Location",
+              icon: {
+                url: '/bus-icon.png',
+                scaledSize: new google.maps.Size(60, 60),
+                anchor: new google.maps.Point(30, 30),
+              },
+            });
           } else {
-            markerRef.current.position = pos;
+            markerRef.current.setPosition(pos);
           }
         }
       },
       (error) => {
         console.error("Geolocation error:", error);
-        setMapError("Unable to retrieve location");
+        setGpsError("Unable to retrieve location. Please enable GPS.");
       }
     );
   };
 
   const handleTrackingUpdate = (data) => {
-    // Requirements:
-    // 4. Console log { lat, lng, speed } on every update (Handled in tracker.js but also can stay here if needed for debug)
     console.log("Tracking Update:", data);
-    setGpsError(null); // Clear error on successful update
+    setLastUpdate(new Date());
+    setGpsError(null);
+    
+    // Update marker position if map is ready
+    if (markerRef.current && data.lat && data.lng) {
+      const newPos = { lat: data.lat, lng: data.lng };
+      markerRef.current.position = newPos;
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.panTo(newPos);
+      }
+    }
   };
 
   const handleTrackingError = (error) => {
@@ -175,7 +178,6 @@ const Driver = () => {
       watchIdRef.current = null;
       setIsTracking(false);
       
-      // Release Wake Lock
       if (isSupported) {
         try {
           await release();
@@ -187,22 +189,19 @@ const Driver = () => {
       // Start tracking
       setGpsError(null);
       
-      // Pre-check for geolocation support
       if (!navigator.geolocation) {
-         setGpsError("Geolocation not supported");
-         return;
+        setGpsError("Geolocation not supported");
+        return;
       }
 
       watchIdRef.current = startTracking(busId, handleTrackingUpdate, handleTrackingError);
       
-      // If startTracking returns null immediately (e.g. no support), don't set tracking true
       if (watchIdRef.current === null) {
-         return;
+        return;
       }
       
       setIsTracking(true);
 
-      // Request Wake Lock
       if (isSupported) {
         try {
           await request();
@@ -213,68 +212,173 @@ const Driver = () => {
     }
   };
 
+  const getBusNumber = () => {
+    return busId.replace('BUS-', '');
+  };
+
   return (
-    <div className="driver-container">
-      <div className="driver-header">
-        <div>
-          <h1>Driver Console</h1>
-          <div className="bus-id">ID: {busId}</div>
+    <div className="min-h-screen bg-gradient-to-b from-[#0b1b3a] via-[#102a5c] to-[#0a1225] text-white">
+      {/* Header */}
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6 }}
+        className="px-6 py-4 bg-white/5 backdrop-blur border-b border-white/10"
+      >
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <motion.img
+              src={vvceLogo}
+              alt="VVCE"
+              className="w-12 h-12 rounded-lg drop-shadow-xl"
+              animate={{ rotate: [0, 5, -5, 0] }}
+              transition={{ duration: 6, repeat: Infinity }}
+            />
+            <div>
+              <h1 className="text-2xl font-extrabold">Driver Panel</h1>
+              <p className="text-blue-200 text-sm">Bus ID: {getBusNumber()}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <select 
+              value={selectedBus}
+              onChange={(e) => setSelectedBus(e.target.value)}
+              disabled={isTracking}
+              className="px-4 py-2 rounded-lg bg-white/10 backdrop-blur border border-white/20 font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <option value="BUS-101" className="bg-[#0b1b3a] text-white">Bus 101</option>
+              <option value="BUS-102" className="bg-[#0b1b3a] text-white">Bus 102</option>
+              <option value="BUS-103" className="bg-[#0b1b3a] text-white">Bus 103</option>
+            </select>
+            <button 
+              onClick={handleLogout}
+              className="px-4 py-2 rounded-lg bg-red-500/20 border border-red-500/30 hover:bg-red-500/30 transition-colors font-semibold"
+            >
+              Sign Out
+            </button>
+          </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <select 
-            value={selectedBus}
-            onChange={(e) => setSelectedBus(e.target.value)}
-            disabled={isTracking}
-            style={{
-              padding: '8px 16px',
-              borderRadius: '8px',
-              border: '2px solid #3b82f6',
-              background: 'white',
-              fontSize: '16px',
-              fontWeight: '600',
-              cursor: isTracking ? 'not-allowed' : 'pointer',
-              opacity: isTracking ? 0.6 : 1
-            }}
-          >
-            <option value="BUS-101">Bus 101</option>
-            <option value="BUS-102">Bus 102</option>
-            <option value="BUS-103">Bus 103</option>
-          </select>
-          <button onClick={handleLogout} className="logout-btn">Sign Out</button>
+      </motion.div>
+
+      <div className="max-w-7xl mx-auto px-6 py-6">
+        <div className="grid lg:grid-cols-3 gap-6">
+          {/* Left: Status Cards */}
+          <div className="lg:col-span-1 space-y-6">
+            {/* Tracking Status Card */}
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.6 }}
+              className="rounded-2xl p-6 bg-white/10 backdrop-blur border border-white/20 shadow-xl"
+            >
+              <h2 className="text-xl font-bold mb-4">Tracking Status</h2>
+              <div className={`text-2xl font-black mb-2 ${isTracking ? 'text-green-400' : 'text-red-400'}`}>
+                {isTracking ? 'ACTIVE' : 'INACTIVE'}
+              </div>
+              <p className="text-sm text-blue-200">
+                {isTracking 
+                  ? lastUpdate 
+                    ? `Last update: ${lastUpdate.toLocaleTimeString()}`
+                    : 'Tracking in progress...'
+                  : 'No data sent yet'}
+              </p>
+              {gpsError && (
+                <div className="mt-3 p-3 rounded-lg bg-red-500/20 border border-red-500/30">
+                  <p className="text-xs text-red-300">{gpsError}</p>
+                </div>
+              )}
+              {!isOnline && (
+                <div className="mt-3 p-3 rounded-lg bg-yellow-500/20 border border-yellow-500/30">
+                  <p className="text-xs text-yellow-300">No internet connection</p>
+                </div>
+              )}
+            </motion.div>
+
+            {/* Instructions Card */}
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.6, delay: 0.1 }}
+              className="rounded-2xl p-6 bg-white/10 backdrop-blur border border-white/20 shadow-xl"
+            >
+              <h2 className="text-xl font-bold mb-4">Instructions</h2>
+              <ul className="space-y-3 text-sm text-blue-100">
+                <li className="flex items-start gap-2">
+                  <span className="text-green-400 mt-0.5">•</span>
+                  <span>Enable GPS on your phone.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-green-400 mt-0.5">•</span>
+                  <span>Press Start before leaving the depot.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-green-400 mt-0.5">•</span>
+                  <span>Keep the app open during the trip.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-green-400 mt-0.5">•</span>
+                  <span>Press Stop after completing the route.</span>
+                </li>
+              </ul>
+            </motion.div>
+          </div>
+
+          {/* Right: Map + Button */}
+          <div className="lg:col-span-2 space-y-4">
+            {/* Map Container */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.2 }}
+              className="rounded-2xl overflow-hidden bg-white/10 backdrop-blur border border-white/20 shadow-xl"
+            >
+              <div className="relative h-[500px]">
+                {mapError && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-red-500/10 z-10">
+                    <div className="text-center">
+                      <p className="text-red-300 mb-2">{mapError}</p>
+                      <button 
+                        onClick={getLocation}
+                        className="px-4 py-2 rounded-lg bg-blue-500 hover:bg-blue-600 transition-colors"
+                      >
+                        Retry
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {!currentPosition && !mapError && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-blue-500/10 z-10">
+                    <div className="text-center">
+                      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-400 mx-auto mb-4"></div>
+                      <p className="text-blue-200">Loading your location...</p>
+                    </div>
+                  </div>
+                )}
+                <div ref={mapRef} className="w-full h-full" />
+              </div>
+            </motion.div>
+
+            {/* Start/Stop Button */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.3 }}
+              className="flex justify-center"
+            >
+              <button
+                onClick={toggleTracking}
+                disabled={!isOnline || !!mapError}
+                className={`px-8 py-4 rounded-xl font-bold text-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+                  isTracking
+                    ? 'bg-gradient-to-r from-red-500 to-red-600 hover:scale-105 shadow-lg shadow-red-500/50'
+                    : 'bg-gradient-to-r from-green-500 to-green-600 hover:scale-105 shadow-lg shadow-green-500/50'
+                }`}
+              >
+                {isTracking ? 'Stop Auto Tracking' : 'Start Auto Tracking'}
+              </button>
+            </motion.div>
+          </div>
         </div>
-      </div>
-
-      <div className="status-ring-container">
-        <div className={`status-ring ${isTracking ? 'active' : 'inactive'}`}></div>
-        <div className="status-text">
-          {isTracking ? "ONLINE" : "OFFLINE"}
-        </div>
-        {!isOnline && <div style={{color: 'red', fontSize: '0.8rem', marginTop: '4px'}}>NO INTERNET</div>}
-      </div>
-
-      {/* Map Section */}
-      <div className="map-container">
-        {mapError && <div className="map-error">{mapError}</div>}
-        {gpsError && <div className="map-error" style={{backgroundColor: '#ffebee', color: '#c62828'}}>{gpsError}</div>}
-        {!mapError && !currentPosition && !gpsError && <div className="map-loading">Locating...</div>}
-        
-        <div 
-          ref={mapRef} 
-          className="google-map" 
-          style={{ width: '100%', height: '100%', borderRadius: '12px', display: (mapError || gpsError) ? 'none' : 'block' }} 
-        />
-      </div>
-
-      <div className="controls">
-        <button 
-          className={`toggle-btn ${isTracking ? 'stop' : 'start'}`}
-          onClick={toggleTracking}
-          disabled={!isOnline || !!mapError} // Disable if offline or critical map error
-          style={{ opacity: (!isOnline || !!mapError) ? 0.6 : 1, cursor: (!isOnline || !!mapError) ? 'not-allowed' : 'pointer'}}
-        >
-          {isTracking ? "Stop Trip" : "Start Trip"}
-        </button>
-        {(!isOnline) && <p style={{fontSize: '0.8rem', color: '#666', marginTop: '8px'}}>Waiting for connection...</p>}
       </div>
     </div>
   );

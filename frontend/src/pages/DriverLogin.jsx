@@ -14,27 +14,14 @@ export default function DriverLogin() {
       return alert("Enter Driver ID and Password");
     }
 
-    try {
-      setLoading(true);
-      const res = await fetch("/api/driver/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password }),
-      });
-
-      if (!res.ok) {
-        setLoading(false);
-        return alert("Invalid Driver ID or Password");
-      }
-
-      const data = await res.json();
-      localStorage.setItem("busId", data.busId);
-      navigate("/driver-panel");
-    } catch (e) {
-      alert("Server not reachable");
-    } finally {
+    // Skip validation - allow all drivers to proceed
+    setLoading(true);
+    
+    // Short delay for UX
+    setTimeout(() => {
       setLoading(false);
-    }
+      navigate('/driver');
+    }, 500);
   };
 
   return (
