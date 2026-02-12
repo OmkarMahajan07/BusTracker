@@ -12,12 +12,14 @@ const Driver = () => {
   const [mapError, setMapError] = useState(null);
   const [gpsError, setGpsError] = useState(null);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [selectedBus, setSelectedBus] = useState("BUS-101"); // Bus selection state
   
   const mapRef = useRef(null); // Reference to the map div
   const mapInstanceRef = useRef(null); // Reference to the Google Map instance
   const markerRef = useRef(null); // Reference to the user marker
   const watchIdRef = useRef(null); // Reference to the GPS watch ID
-  const busId = "BUS-101"; 
+  
+  const busId = selectedBus; // Use selected bus ID
 
   const handleLogout = () => {
     signOut(auth).catch((error) => console.error("Logout error:", error));
@@ -218,7 +220,28 @@ const Driver = () => {
           <h1>Driver Console</h1>
           <div className="bus-id">ID: {busId}</div>
         </div>
-        <button onClick={handleLogout} className="logout-btn">Sign Out</button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <select 
+            value={selectedBus}
+            onChange={(e) => setSelectedBus(e.target.value)}
+            disabled={isTracking}
+            style={{
+              padding: '8px 16px',
+              borderRadius: '8px',
+              border: '2px solid #3b82f6',
+              background: 'white',
+              fontSize: '16px',
+              fontWeight: '600',
+              cursor: isTracking ? 'not-allowed' : 'pointer',
+              opacity: isTracking ? 0.6 : 1
+            }}
+          >
+            <option value="BUS-101">Bus 101</option>
+            <option value="BUS-102">Bus 102</option>
+            <option value="BUS-103">Bus 103</option>
+          </select>
+          <button onClick={handleLogout} className="logout-btn">Sign Out</button>
+        </div>
       </div>
 
       <div className="status-ring-container">

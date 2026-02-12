@@ -5,6 +5,7 @@ import StudentLogin from "./pages/StudentLogin";
 import StudentSetup from "./pages/StudentSetup";
 import BusesDashboard from "./pages/BusesDashboard";
 import BusDashboard from "./pages/BusDashboard";
+import RouteUploader from "./pages/RouteUploader";
 import DriverLogin from "./pages/DriverLogin";
 import Login from "./components/Login";
 import Driver from "./pages/Driver";
@@ -55,6 +56,10 @@ function App() {
           <Route 
             path="/bus/:busNumber" 
             element={<BusDashboard />} 
+          />
+          <Route 
+            path="/upload-routes" 
+            element={<RouteUploader />} 
           />
 
           {/* Protected Routes */}
