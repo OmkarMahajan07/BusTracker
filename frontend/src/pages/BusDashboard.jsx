@@ -59,8 +59,31 @@ export default function BusDashboard() {
         setLastUpdate(new Date(data.updatedAt));
         setIsOnline(true);
       } else {
-        console.warn(`[Bus ${busNumber}] No location data available`);
-        setIsOnline(false);
+        // Fallback to BUS-101 location for demo purposes (if current bus has no driver)
+        console.warn(`[Bus ${busNumber}] No location data, trying BUS-101 fallback...`);
+        
+        // Only fallback for buses 102 and 103
+        if (busId !== 'BUS-101') {
+          const fallbackRef = ref(db, 'buses/BUS-101/location');
+          onValue(fallbackRef, (fallbackSnapshot) => {
+            const fallbackData = fallbackSnapshot.val();
+            if (fallbackData && fallbackData.lat && fallbackData.lng) {
+              console.log(`[Bus ${busNumber}] Using BUS-101 location as fallback`);
+              setBusLocation({
+                lat: fallbackData.lat,
+                lng: fallbackData.lng,
+                speed: fallbackData.speed,
+                updatedAt: fallbackData.updatedAt
+              });
+              setLastUpdate(new Date(fallbackData.updatedAt));
+              setIsOnline(true);
+            } else {
+              setIsOnline(false);
+            }
+          });
+        } else {
+          setIsOnline(false);
+        }
       }
     }, (error) => {
       console.error(`[Bus ${busNumber}] Firebase error:`, error);

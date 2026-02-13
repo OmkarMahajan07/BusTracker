@@ -49,27 +49,27 @@
   - [ ] Add "Sign In" Button.
 
 - [ ] **Task 8: Implement Authentication**
-  - [ ] Create `src/contexts/AuthContext.jsx`.
-  - [ ] Implement `login(email, password)`.
-  - [ ] Persist User state across reloads.
+  - [x] Create `src/contexts/AuthContext.jsx`.
+  - [x] Implement `login(email, password)`.
+  - [x] Persist User state across reloads.
 
 - [ ] **Task 9: Role-Based Routing**
-  - [ ] Configure `react-router-dom` in `App.jsx`.
-  - [ ] Create `/driver` route (Protected).
-  - [ ] Create `/passenger` route (Protected).
-  - [ ] Implement redirect logic based on Role.
+  - [x] Configure `react-router-dom` in `App.jsx`.
+  - [x] Create `/driver` route (Protected).
+  - [x] Create `/passenger` route (Protected).
+  - [x] Implement redirect logic based on Role.
 
 ### 🔹 SECTION 5: Driver Dashboard (GPS WRITE PATH)
 - [ ] **Task 10: Build Driver Layout**
-  - [ ] Create `src/pages/Driver.jsx`.
-  - [ ] Add Header (Bus ID).
-  - [ ] Add Status Ring (Active/Inactive).
-  - [ ] Add Big Toggle Button (Start/Stop).
+  - [x] Create `src/pages/Driver.jsx`.
+  - [x] Add Header (Bus ID).
+  - [x] Add Status Ring (Active/Inactive).
+  - [x] Add Big Toggle Button (Start/Stop).
 
 - [ ] **Task 11: Integrate Maps (Driver)**
-  - [ ] Load Google Maps API in `Driver.jsx`.
-  - [ ] Center map on current location.
-  - [ ] Add a Marker representing the Bus.
+  - [x] Load Google Maps API in `Driver.jsx`.
+  - [x] Center map on current location.
+  - [x] Add a Marker representing the Bus.
 
 - [ ] **Task 12: Implement GPS Tracking**
   - [ ] Create `src/services/tracker.js`.
