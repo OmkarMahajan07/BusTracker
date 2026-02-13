@@ -42,8 +42,16 @@ export default function BusDashboard() {
   useEffect(() => {
     if (!busId) return;
 
-    console.log(`[Bus ${busNumber}] Subscribing to location:`, `buses/${busId}/location`);
-    const locationRef = ref(db, `buses/${busId}/location`);
+    // For BUS-102 and BUS-103, subscribe to BUS-101's location as fallback
+    const shouldUseFallback = (busId === 'BUS-102' || busId === 'BUS-103');
+    const subscriptionPath = shouldUseFallback ? 'buses/BUS-101/location' : `buses/${busId}/location`;
+    
+    console.log(`[Bus ${busNumber}] Subscribing to:`, subscriptionPath);
+    if (shouldUseFallback) {
+      console.log(`[Bus ${busNumber}] Using BUS-101 as fallback`);
+    }
+    
+    const locationRef = ref(db, subscriptionPath);
     
     const unsubscribe = onValue(locationRef, (snapshot) => {
       const data = snapshot.val();
@@ -59,31 +67,8 @@ export default function BusDashboard() {
         setLastUpdate(new Date(data.updatedAt));
         setIsOnline(true);
       } else {
-        // Fallback to BUS-101 location for demo purposes (if current bus has no driver)
-        console.warn(`[Bus ${busNumber}] No location data, trying BUS-101 fallback...`);
-        
-        // Only fallback for buses 102 and 103
-        if (busId !== 'BUS-101') {
-          const fallbackRef = ref(db, 'buses/BUS-101/location');
-          onValue(fallbackRef, (fallbackSnapshot) => {
-            const fallbackData = fallbackSnapshot.val();
-            if (fallbackData && fallbackData.lat && fallbackData.lng) {
-              console.log(`[Bus ${busNumber}] Using BUS-101 location as fallback`);
-              setBusLocation({
-                lat: fallbackData.lat,
-                lng: fallbackData.lng,
-                speed: fallbackData.speed,
-                updatedAt: fallbackData.updatedAt
-              });
-              setLastUpdate(new Date(fallbackData.updatedAt));
-              setIsOnline(true);
-            } else {
-              setIsOnline(false);
-            }
-          });
-        } else {
-          setIsOnline(false);
-        }
+        console.warn(`[Bus ${busNumber}] No location data available`);
+        setIsOnline(false);
       }
     }, (error) => {
       console.error(`[Bus ${busNumber}] Firebase error:`, error);
