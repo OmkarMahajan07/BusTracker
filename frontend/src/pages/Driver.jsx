@@ -85,7 +85,6 @@ const Driver = () => {
       mapInstanceRef.current = new window.google.maps.Map(mapRef.current, {
         center: { lat: 12.2958, lng: 76.6394 }, // Mysuru default
         zoom: 15,
-        mapId: "DRIVER_MAP_ID",
         disableDefaultUI: false,
         zoomControl: true,
         streetViewControl: false,
