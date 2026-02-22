@@ -31,32 +31,44 @@ export default function BusDashboard() {
   const busId = `BUS-${busNumber}`;
   const routeKey = getRouteByBusId(busId);
 
-  // Demo passenger count (can be fetched from Firebase later)
-  const passengerCount = {
-    '101': 32,
-    '102': 28,
-    '103': 25
-  }[busNumber] || 30;
+  const [seatStatus, setSeatStatus] = useState(null);
+  const [etaDuration, setEtaDuration] = useState('--');
+  const [etaArrival, setEtaArrival] = useState('');
 
-  // 1. Subscribe to bus location from Firebase
+  // Read student's destination stop index from localStorage
+  const studentPref = (() => {
+    try { return JSON.parse(localStorage.getItem('studentPref') || 'null'); } catch { return null; }
+  })();
+
+  // Seat status config
+  const SEAT_STATUS_CONFIG = {
+    'AVAILABLE': { label: 'Available',    color: '#4ade80', bg: 'bg-green-500/20',  border: 'border-green-500/40',  icon: '🟢' },
+    'HALF-FULL': { label: 'Half Filled',  color: '#facc15', bg: 'bg-yellow-500/20', border: 'border-yellow-500/40', icon: '🟡' },
+    'FULL':      { label: 'Full',         color: '#f87171', bg: 'bg-red-500/20',    border: 'border-red-500/40',    icon: '🔴' },
+  };
+
+  // 0. Subscribe to seat/occupancy status from Firebase
+  useEffect(() => {
+    if (!busId) return;
+    const occupancyRef = ref(db, `buses/${busId}/occupancyStatus`);
+    const unsubscribe = onValue(occupancyRef, (snapshot) => {
+      const val = snapshot.val();
+      setSeatStatus(val || null);
+    });
+    return () => unsubscribe();
+  }, [busId]);
+
+  // 1. Subscribe to this bus's own location from Firebase
   useEffect(() => {
     if (!busId) return;
 
-    // For BUS-102 and BUS-103, subscribe to BUS-101's location as fallback
-    const shouldUseFallback = (busId === 'BUS-102' || busId === 'BUS-103');
-    const subscriptionPath = shouldUseFallback ? 'buses/BUS-101/location' : `buses/${busId}/location`;
-    
-    console.log(`[Bus ${busNumber}] Subscribing to:`, subscriptionPath);
-    if (shouldUseFallback) {
-      console.log(`[Bus ${busNumber}] Using BUS-101 as fallback`);
-    }
-    
-    const locationRef = ref(db, subscriptionPath);
-    
+    console.log(`[Bus ${busNumber}] Subscribing to: buses/${busId}/location`);
+    const locationRef = ref(db, `buses/${busId}/location`);
+
     const unsubscribe = onValue(locationRef, (snapshot) => {
       const data = snapshot.val();
       console.log(`[Bus ${busNumber}] Location update:`, data);
-      
+
       if (data && data.lat && data.lng) {
         setBusLocation({
           lat: data.lat,
@@ -67,7 +79,7 @@ export default function BusDashboard() {
         setLastUpdate(new Date(data.updatedAt));
         setIsOnline(true);
       } else {
-        console.warn(`[Bus ${busNumber}] No location data available`);
+        console.warn(`[Bus ${busNumber}] No location data yet`);
         setIsOnline(false);
       }
     }, (error) => {
@@ -106,7 +118,34 @@ export default function BusDashboard() {
     return () => unsubscribe();
   }, [routeKey, busNumber]);
 
-  // 3. Geocode stop names to coordinates
+  // ETA: recalculate whenever bus location or route stops change
+  useEffect(() => {
+    if (!busLocation || !routeStops.length || !directionsServiceRef.current) return;
+
+    // Pick the student's destination stop; fall back to final stop
+    const destIndex = studentPref?.destination
+      ? Math.min(studentPref.destination, routeStops.length - 1)
+      : routeStops.length - 1;
+    const destStop = routeStops[destIndex];
+    if (!destStop?.lat || !destStop?.lng) return;
+
+    const origin = { lat: busLocation.lat, lng: busLocation.lng };
+    const destination = { lat: destStop.lat, lng: destStop.lng };
+
+    directionsServiceRef.current.route(
+      { origin, destination, travelMode: google.maps.TravelMode.DRIVING },
+      (result, status) => {
+        if (status === 'OK' && result.routes[0]?.legs[0]) {
+          const durationText = result.routes[0].legs[0].duration.text;
+          const arrivalMs = Date.now() + result.routes[0].legs[0].duration.value * 1000;
+          const arrivalTime = new Date(arrivalMs).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          setEtaDuration(durationText);
+          setEtaArrival(arrivalTime);
+        }
+      }
+    );
+  }, [busLocation, routeStops]);
+
   const geocodeStops = async (stops) => {
     if (!window.google || !window.google.maps) {
       console.warn('[Geocoding] Google Maps not loaded yet');
@@ -402,7 +441,7 @@ export default function BusDashboard() {
               transition={{ duration: 6, repeat: Infinity }}
             />
             <div>
-              <h1 className="text-2xl font-extrabold">Bus {busNumber} Tracking</h1>
+              <h1 className="text-2xl font-extrabold text-white">Bus {busNumber} Tracking</h1>
               <p className="text-blue-200 text-sm">Live Route Monitoring</p>
             </div>
           </div>
@@ -456,7 +495,7 @@ export default function BusDashboard() {
                 )}
               </div>
 
-              <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
+              <h2 className="text-xl font-bold mb-6 flex items-center gap-2 text-white">
                 <Navigation className="w-5 h-5 text-blue-400" />
                 Route Stops
               </h2>
@@ -529,63 +568,98 @@ export default function BusDashboard() {
               </div>
             </motion.div>
 
-            {/* Bottom Info Cards Grid */}
+            {/* Bottom Info Cards — 4 in a row */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+
+              {/* Card 1: Bus Number + Total Stops (merged) */}
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: 0.3 }}
                 className="rounded-xl p-4 bg-white/10 backdrop-blur border border-white/20 shadow-lg"
               >
-                <div className="flex items-center gap-2 mb-2">
-                  <Bus className="w-5 h-5 text-blue-400" />
-                  <p className="text-xs text-blue-200">Bus Number</p>
+                <div className="flex items-start gap-4 h-full">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <Bus className="w-4 h-4 text-blue-400 flex-shrink-0" />
+                      <p className="text-xs text-blue-200 whitespace-nowrap">Bus No.</p>
+                    </div>
+                    <p className="text-2xl font-black text-white">{busNumber}</p>
+                  </div>
+                  <div className="w-px self-stretch bg-white/20" />
+                  <div className="flex-1">
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <MapPin className="w-4 h-4 text-green-400 flex-shrink-0" />
+                      <p className="text-xs text-blue-200 whitespace-nowrap">Stops</p>
+                    </div>
+                    <p className="text-2xl font-black text-white">{routeStops.length}</p>
+                  </div>
                 </div>
-                <p className="text-2xl font-black">{busNumber}</p>
               </motion.div>
 
+              {/* Card 2: ETA */}
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: 0.4 }}
-                className="rounded-xl p-4 bg-white/10 backdrop-blur border border-white/20 shadow-lg"
+                className="rounded-xl p-4 bg-blue-500/15 backdrop-blur border border-blue-500/30 shadow-lg"
               >
-                <div className="flex items-center gap-2 mb-2">
-                  <MapPin className="w-5 h-5 text-green-400" />
-                  <p className="text-xs text-blue-200">Total Stops</p>
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Navigation className="w-4 h-4 text-blue-400" />
+                  <p className="text-xs text-blue-200">ETA to your stop</p>
                 </div>
-                <p className="text-2xl font-black">{routeStops.length}</p>
+                {busLocation ? (
+                  <>
+                    <p className="text-xl font-black text-white leading-tight">{etaDuration}</p>
+                    {etaArrival && <p className="text-xs text-blue-300 mt-0.5">{etaArrival}</p>}
+                  </>
+                ) : (
+                  <p className="text-sm text-blue-300">Waiting for bus…</p>
+                )}
               </motion.div>
 
+              {/* Card 3: Seat Status */}
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: 0.5 }}
-                className="rounded-xl p-4 bg-white/10 backdrop-blur border border-white/20 shadow-lg"
+                className={`rounded-xl p-4 backdrop-blur border shadow-lg ${
+                  seatStatus && SEAT_STATUS_CONFIG[seatStatus]
+                    ? `${SEAT_STATUS_CONFIG[seatStatus].bg} ${SEAT_STATUS_CONFIG[seatStatus].border}`
+                    : 'bg-white/10 border-white/20'
+                }`}
               >
-                <div className="flex items-center gap-2 mb-2">
-                  <Users className="w-5 h-5 text-yellow-400" />
-                  <p className="text-xs text-blue-200">Passengers</p>
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Users className="w-4 h-4 text-yellow-400" />
+                  <p className="text-xs text-blue-200">Seat Status</p>
                 </div>
-                <p className="text-2xl font-black">{passengerCount}</p>
+                {seatStatus && SEAT_STATUS_CONFIG[seatStatus] ? (
+                  <p className="text-xl font-black" style={{ color: SEAT_STATUS_CONFIG[seatStatus].color }}>
+                    {SEAT_STATUS_CONFIG[seatStatus].icon} {SEAT_STATUS_CONFIG[seatStatus].label}
+                  </p>
+                ) : (
+                  <p className="text-sm text-blue-300">No data</p>
+                )}
               </motion.div>
 
+              {/* Card 4: Speed */}
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: 0.6 }}
                 className="rounded-xl p-4 bg-white/10 backdrop-blur border border-white/20 shadow-lg"
               >
-                <div className="flex items-center gap-2 mb-2">
-                  <Clock className="w-5 h-5 text-purple-400" />
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Clock className="w-4 h-4 text-purple-400" />
                   <p className="text-xs text-blue-200">Speed</p>
                 </div>
-                <p className="text-2xl font-black">
-                  {busLocation?.speed 
-                    ? `${Math.round(busLocation.speed * 3.6)} km/h` 
+                <p className="text-2xl font-black text-white">
+                  {busLocation?.speed
+                    ? `${Math.round(busLocation.speed * 3.6)} km/h`
                     : '--'}
                 </p>
               </motion.div>
+
             </div>
           </div>
         </div>

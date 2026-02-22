@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ref, onValue } from 'firebase/database';
 import { db } from '../firebase';
-import './RouteList.css'; // We'll create a basic CSS file for it too
+import './RouteList.css';
 
 const RouteList = () => {
   const [routes, setRoutes] = useState([]);
@@ -11,12 +11,9 @@ const RouteList = () => {
 
   useEffect(() => {
     const routesRef = ref(db, 'routes');
-    
-    // Listen for routes data
     const unsubscribe = onValue(routesRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
-        // Convert object to array: { routeA: {...}, routeB: {...} } -> [{id: 'routeA', ...}, ...]
         const routesArray = Object.entries(data).map(([key, value]) => ({
           id: key,
           ...value
@@ -27,7 +24,6 @@ const RouteList = () => {
       }
       setLoading(false);
     });
-
     return () => unsubscribe();
   }, []);
 
@@ -47,8 +43,8 @@ const RouteList = () => {
           <p>No active routes found.</p>
         ) : (
           routes.map((route) => (
-            <div 
-              key={route.id} 
+            <div
+              key={route.id}
               className="route-card"
               onClick={() => handleRouteSelect(route.id)}
             >

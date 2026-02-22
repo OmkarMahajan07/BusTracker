@@ -28,13 +28,13 @@ export default function Home() {
               transition={{ duration: 6, repeat: Infinity }}
             />
             <div>
-              <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight">VVCE Bus Tracker</h1>
+              <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-white">VVCE Bus Tracker</h1>
               <p className="text-blue-200 text-sm md:text-base">Vidyavardhaka College of Engineering, Mysuru</p>
 
             </div>
           </div>
 
-          <h2 className="text-4xl md:text-5xl lg:text-6xl font-black leading-tight mb-4">
+          <h2 className="text-4xl md:text-5xl lg:text-6xl font-black leading-tight mb-4 text-white">
             Track Your College Bus
             <span className="block text-yellow-300">In Real Time</span>
           </h2>
@@ -100,7 +100,7 @@ export default function Home() {
               key={f.title}
               className="rounded-2xl p-5 bg-white/10 backdrop-blur border border-white/20 shadow-xl"
             >
-              <h3 className="font-bold text-lg mb-1">{f.title}</h3>
+              <h3 className="font-bold text-lg mb-1 text-white">{f.title}</h3>
               <p className="text-sm text-blue-100">{f.desc}</p>
             </div>
           ))}

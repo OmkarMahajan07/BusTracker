@@ -9,6 +9,7 @@ import RouteUploader from "./pages/RouteUploader";
 import DriverLogin from "./pages/DriverLogin";
 import Login from "./components/Login";
 import Driver from "./pages/Driver";
+import DriverSetup from "./pages/DriverSetup";
 import Passenger from "./pages/Passenger";
 import RouteList from "./pages/RouteList";
 import { AuthContext } from './contexts/AuthContext';
@@ -22,8 +23,8 @@ function App() {
   }
 
   const getDashboardPath = (user) => {
-    // Drivers go to /driver, Passengers go to /routes (to select a route first)
-    return user.email && user.email.toLowerCase().includes('driver') ? '/driver' : '/routes';
+    // Drivers go to /driver, Students go to /student-setup first
+    return user.email && user.email.toLowerCase().includes('driver') ? '/driver' : '/student-setup';
   };
 
   return (
@@ -39,12 +40,13 @@ function App() {
           {/* Login Routes */}
           <Route 
             path="/student-login" 
-            element={!user ? <StudentLogin /> : <Navigate to="/routes" replace />} 
+            element={!user ? <StudentLogin /> : <Navigate to="/student-setup" replace />} 
           />
           <Route 
             path="/driver-login" 
-            element={!user ? <DriverLogin /> : <Navigate to="/driver" replace />} 
+            element={!user ? <DriverLogin /> : <Navigate to="/driver-setup" replace />} 
           />
+          <Route path="/driver-setup" element={<DriverSetup />} />
           <Route 
             path="/student-setup" 
             element={<StudentSetup />} 

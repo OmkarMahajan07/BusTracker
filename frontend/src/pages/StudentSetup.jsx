@@ -87,7 +87,7 @@ export default function StudentSetup() {
             transition={{ duration: 6, repeat: Infinity }}
           />
           <div>
-            <h2 className="text-2xl font-extrabold">Student Setup</h2>
+            <h2 className="text-2xl font-extrabold text-white">Student Setup</h2>
             <p className="text-blue-200 text-sm">Choose your bus stops</p>
           </div>
         </div>
