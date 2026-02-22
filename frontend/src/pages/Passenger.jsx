@@ -6,15 +6,32 @@ import { getDistanceKm } from '../utils/math';
 import { DEMO_ROUTES } from '../utils/constants';
 import './Passenger.css';
 
+// ─── Occupancy Display Config ────────────────────────────────────────────────
+const OCCUPANCY_DISPLAY = {
+  'AVAILABLE': { emoji: '🟢', label: 'Available',  color: '#4caf50' },
+  'HALF-FULL': { emoji: '🟡', label: 'Half-Full',  color: '#ffc107' },
+  'FULL':      { emoji: '🔴', label: 'Full',        color: '#f44336' },
+};
+// ─────────────────────────────────────────────────────────────────────────────
+
+const FALLBACK_SPEED_KMH = 30; // km/h — used when GPS speed is unavailable or ≤ 5 km/h
+const MIN_ETA_MINUTES    = 1;  // never display less than 1 min
+const MAX_ETA_MINUTES    = 120; // cap unrealistic ETAs
+const ARRIVED_THRESHOLD_KM = 0.01; // treat bus as arrived if < 10 metres away
+// ────────────────────────────────────────────────────────────────────────────
+
 const Passenger = () => {
   const [searchParams] = useSearchParams();
   const routeId = searchParams.get('route');
   const [busLocation, setBusLocation] = useState(null);
   const [mapError, setMapError] = useState(null);
+  // eta can be: null | 'Arrived' | 'Calculating...' | number (minutes)
   const [eta, setEta] = useState(null);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [routeStops, setRouteStops] = useState([]);
   const [isGeocodingStops, setIsGeocodingStops] = useState(false);
+  const [occupancyStatus, setOccupancyStatus] = useState(null);
+  const previousEtaRef = useRef(null);
   
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
@@ -141,6 +158,17 @@ const Passenger = () => {
     return () => unsubscribe();
   }, [busId]);
 
+  // Subscribe to occupancy status
+  useEffect(() => {
+    if (!busId) return;
+    const occupancyRef = ref(db, `buses/${busId}/occupancyStatus`);
+    const unsubscribe = onValue(occupancyRef, (snapshot) => {
+      const val = snapshot.val();
+      setOccupancyStatus(val || null);
+    });
+    return () => unsubscribe();
+  }, [busId]);
+
   // Subscribe to route stops from Firebase
   useEffect(() => {
     if (!routeId) {
@@ -248,23 +276,57 @@ const Passenger = () => {
     renderStopMarkers(routeStops);
   }, [DESTINATION, routeStops, mapInstanceRef.current]);
 
-  // 4a. Calculate ETA
+  // 4a. Calculate ETA — Production-level implementation
   const calculateEta = (location) => {
-    if (!location || !location.lat || !location.lng) return;
-    if (!DESTINATION) return; // Safe guard: no destination = no ETA
-    
-    // Distance in km
-    const distanceKm = getDistanceKm(location.lat, location.lng, DESTINATION.lat, DESTINATION.lng);
-    
-    // Speed: GPS gives m/s. Convert to km/h. Fallback to 30km/h.
-    let speedKmh = (location.speed || 0) * 3.6;
-    if (speedKmh < 5) speedKmh = 30; // Fallback if stopped or slow
+    if (!location || !location.lat || !location.lng) {
+      setEta('Calculating...');
+      return;
+    }
+    if (!DESTINATION) {
+      setEta('Calculating...');
+      return;
+    }
 
-    // Time = Distance / Speed
-    const hours = distanceKm / speedKmh;
-    const minutes = Math.ceil(hours * 60);
+    // ── 1. Distance ──────────────────────────────────────────────────────────
+    const distanceKm = getDistanceKm(
+      location.lat, location.lng,
+      DESTINATION.lat, DESTINATION.lng
+    );
 
-    setEta(minutes < 1 ? 1 : minutes);
+    // ── 2. Arrived check ─────────────────────────────────────────────────────
+    if (distanceKm < ARRIVED_THRESHOLD_KM) {
+      previousEtaRef.current = null;
+      setEta('Arrived');
+      return;
+    }
+
+    // ── 3. Speed (m/s → km/h) with fallback ──────────────────────────────────
+    const rawSpeedMs  = location.speed;
+    const speedKmh    = (rawSpeedMs != null) ? rawSpeedMs * 3.6 : 0;
+    const effectiveSpeed = speedKmh > 5 ? speedKmh : FALLBACK_SPEED_KMH;
+
+    // ── 4. ETA formula ───────────────────────────────────────────────────────
+    const rawEtaMinutes = (distanceKm / effectiveSpeed) * 60;
+
+    // ── 5. Safety guards ─────────────────────────────────────────────────────
+    if (!isFinite(rawEtaMinutes) || isNaN(rawEtaMinutes)) {
+      setEta('Calculating...');
+      return;
+    }
+
+    // Clamp to [MIN, MAX]
+    const clampedEta = Math.min(
+      Math.max(Math.round(rawEtaMinutes), MIN_ETA_MINUTES),
+      MAX_ETA_MINUTES
+    );
+
+    // ── 6. Smoothing (70% previous / 30% new) ────────────────────────────────
+    const smoothed = previousEtaRef.current != null
+      ? Math.round((previousEtaRef.current * 0.7) + (clampedEta * 0.3))
+      : clampedEta;
+
+    previousEtaRef.current = smoothed;
+    setEta(smoothed);
   };
 
   // Geocode place name to coordinates using Google Maps Geocoding API
@@ -458,8 +520,32 @@ const Passenger = () => {
           )}
         </div>
         <p className="eta-text">
-            {eta !== null ? `ETA: ${eta} mins` : "ETA: Calculating..."}
+          {eta === null && 'ETA: Calculating...'}
+          {eta === 'Calculating...' && 'ETA: Calculating...'}
+          {eta === 'Arrived' && '🟢 ETA: Arrived'}
+          {typeof eta === 'number' && `ETA: ${eta} mins`}
         </p>
+        {/* Occupancy Status Badge */}
+        {occupancyStatus && OCCUPANCY_DISPLAY[occupancyStatus] && (() => {
+          const { emoji, label, color } = OCCUPANCY_DISPLAY[occupancyStatus];
+          return (
+            <p style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              marginTop: '6px',
+              padding: '4px 12px',
+              borderRadius: '20px',
+              backgroundColor: color + '22',
+              border: `1.5px solid ${color}`,
+              color: color,
+              fontWeight: '700',
+              fontSize: '0.9rem',
+            }}>
+              {emoji} {label}
+            </p>
+          );
+        })()}
         <p className="route-info">Route ID: {routeId || "None Selected"}</p>
       </div>
     </div>
