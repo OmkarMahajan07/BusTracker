@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { ref, onValue } from 'firebase/database';
 import { db } from '../firebase';
+import { loadGoogleMaps } from '../utils/googleMapsLoader';
 import { getDistanceKm } from '../utils/math';
 import { DEMO_ROUTES } from '../utils/constants';
 import './Passenger.css';
@@ -44,7 +45,7 @@ const Passenger = () => {
   // Resolve route from URL
   const route = DEMO_ROUTES[routeId];
   const DESTINATION = route?.destination;
-  const busId = route?.busId || "BUS-101";
+  const busId = route?.busId || "Bus-9912";
   const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 
   // Network Status Listener
@@ -61,42 +62,18 @@ const Passenger = () => {
     };
   }, []);
   
-  // 1. Load Google Maps Script
+  // 1. Load Google Maps
   useEffect(() => {
     if (!GOOGLE_MAPS_API_KEY) {
       setMapError("Missing Google Maps API Key");
       return;
     }
 
-    const initPassengerMap = () => {
-      initMap();
-    };
+    loadGoogleMaps(GOOGLE_MAPS_API_KEY)
+      .then(() => initMap())
+      .catch(() => setMapError("Failed to load Google Maps API"));
 
-    window.initPassengerMap = initPassengerMap;
-
-    if (window.google && window.google.maps) {
-      initMap();
-    } else {
-      const scriptId = 'google-maps-script';
-      if (!document.getElementById(scriptId)) {
-        const script = document.createElement("script");
-        script.id = scriptId;
-        // Use libraries=marker for AdvancedMarkerElement
-        script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&callback=initPassengerMap&v=weekly&libraries=marker`;
-        script.async = true;
-        script.defer = true;
-        script.onerror = () => setMapError("Failed to load Google Maps API");
-        document.head.appendChild(script);
-      } else {
-         if (window.google && window.google.maps) {
-          initMap();
-        }
-      }
-    }
-
-    return () => {
-      delete window.initPassengerMap;
-    };
+    return () => {};
   }, [GOOGLE_MAPS_API_KEY]);
 
   // 2. Initialize Map
@@ -108,7 +85,7 @@ const Passenger = () => {
       const { Map } = await window.google.maps.importLibrary("maps");
       
       mapInstanceRef.current = new Map(mapRef.current, {
-        center: { lat: 15.2993, lng: 74.1240 }, // Default fallback (e.g. Goa)
+        center: { lat: 12.3269, lng: 76.6331 }, // Default: Mysuru
         zoom: 15,
         mapId: "PASSENGER_MAP_ID",
         disableDefaultUI: false, // Allow passengers to zoom/pan

@@ -7,6 +7,7 @@ import { auth, db } from "../firebase";
 import { ref, set } from 'firebase/database';
 import { startTracking, stopTracking } from '../services/tracker';
 import { Wifi, WifiOff, MapPin, ChevronLeft, LogOut } from 'lucide-react';
+import { loadGoogleMaps } from '../utils/googleMapsLoader';
 import vvceLogo from "../assets/vvce.jpeg";
 
 // ─── Occupancy Config ────────────────────────────────────────────────────────
@@ -24,9 +25,9 @@ const Driver = () => {
   const [mapError, setMapError] = useState(null);
   const [gpsError, setGpsError] = useState(null);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
-  // Read the bus chosen in DriverSetup; fall back to BUS-101
+  // Read the bus chosen in DriverSetup; fall back to Bus-9912
   const [selectedBus] = useState(
-    () => localStorage.getItem("driverSelectedBus") || "BUS-101"
+    () => localStorage.getItem("driverSelectedBus") || "Bus-9912"
   );
   const [lastUpdate, setLastUpdate] = useState(null);
   const [occupancyStatus, setOccupancyStatus] = useState('AVAILABLE');
@@ -37,7 +38,7 @@ const Driver = () => {
   const watchIdRef = useRef(null);
 
   const busId = selectedBus;
-  const busNumber = busId.replace('BUS-', '');
+  const busNumber = busId.replace('Bus-', '');
   const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 
   const handleLogout = () => {
@@ -56,26 +57,15 @@ const Driver = () => {
     };
   }, []);
 
-  // Load Google Maps Script
+  // Load Google Maps
   useEffect(() => {
     if (!GOOGLE_MAPS_API_KEY) { setMapError("Missing Google Maps API Key"); return; }
-    window.initDriverMap = () => initMap();
-    if (window.google && window.google.maps) {
-      initMap();
-    } else {
-      const scriptId = 'google-maps-script';
-      if (!document.getElementById(scriptId)) {
-        const script = document.createElement("script");
-        script.id = scriptId;
-        script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&callback=initDriverMap&v=weekly&libraries=marker`;
-        script.async = true;
-        script.defer = true;
-        script.onerror = () => setMapError("Failed to load Google Maps API");
-        document.head.appendChild(script);
-      }
-    }
+
+    loadGoogleMaps(GOOGLE_MAPS_API_KEY)
+      .then(() => initMap())
+      .catch(() => setMapError("Failed to load Google Maps API"));
+
     return () => {
-      delete window.initDriverMap;
       if (watchIdRef.current !== null) stopTracking(watchIdRef.current);
     };
   }, [GOOGLE_MAPS_API_KEY]);

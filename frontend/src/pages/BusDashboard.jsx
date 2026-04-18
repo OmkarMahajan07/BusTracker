@@ -1,14 +1,17 @@
 import { useState, useEffect, useRef } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Bus, MapPin, Clock, Users, Navigation, Wifi, WifiOff } from "lucide-react";
 import { ref, onValue } from 'firebase/database';
 import { db } from '../firebase';
 import { getRouteByBusId } from '../utils/firebaseRoutes';
+import { loadGoogleMaps } from '../utils/googleMapsLoader';
 import vvceLogo from "../assets/vvce.jpeg";
 
 export default function BusDashboard() {
   const { busNumber } = useParams();
+  const [searchParams] = useSearchParams();
+  const shift = searchParams.get('shift') || 'morning';
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const markerRef = useRef(null);
@@ -19,6 +22,7 @@ export default function BusDashboard() {
   const [busLocation, setBusLocation] = useState(null);
   const [routeData, setRouteData] = useState(null);
   const [routeStops, setRouteStops] = useState([]);
+  const [rawStops, setRawStops] = useState([]);      // stops as received from Firebase (no coords yet)
   const [isGeocoding, setIsGeocoding] = useState(false);
   const [mapError, setMapError] = useState(null);
   const [isMapReady, setIsMapReady] = useState(false);
@@ -27,9 +31,9 @@ export default function BusDashboard() {
   
   const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
   
-  // Map busNumber to busId
-  const busId = `BUS-${busNumber}`;
-  const routeKey = getRouteByBusId(busId);
+  // Map busNumber to busId + look up the correct route for this shift
+  const busId = `Bus-${busNumber}`;
+  const routeKey = getRouteByBusId(busId, shift);
 
   const [seatStatus, setSeatStatus] = useState(null);
   const [etaDuration, setEtaDuration] = useState('--');
@@ -99,24 +103,41 @@ export default function BusDashboard() {
 
     console.log(`[Bus ${busNumber}] Fetching route:`, `routes/${routeKey}`);
     const routeRef = ref(db, `routes/${routeKey}`);
-    
+
     const unsubscribe = onValue(routeRef, (snapshot) => {
       const data = snapshot.val();
       console.log(`[Bus ${busNumber}] Route data:`, data);
-      
+
       if (data) {
         setRouteData(data);
         if (data.stops) {
-          const stopsArray = Array.isArray(data.stops) 
-            ? data.stops 
+          const stopsArray = Array.isArray(data.stops)
+            ? data.stops
             : Object.values(data.stops);
-          geocodeStops(stopsArray);
+
+          setRawStops(stopsArray); // always store raw stops
+
+          // Attempt geocoding immediately if map is already loaded
+          if (window.google && window.google.maps) {
+            geocodeStops(stopsArray);
+          } else {
+            console.log(`[Bus ${busNumber}] Map not ready — stops queued for geocoding`);
+          }
         }
       }
     });
 
     return () => unsubscribe();
   }, [routeKey, busNumber]);
+
+  // 2b. Retry geocoding when map becomes ready (fixes race condition)
+  useEffect(() => {
+    if (isMapReady && rawStops.length > 0 && routeStops.length === 0) {
+      console.log('[Geocoding] Map is now ready — geocoding queued stops...');
+      geocodeStops(rawStops);
+    }
+  }, [isMapReady, rawStops]);
+
 
   // ETA: recalculate whenever bus location or route stops change
   useEffect(() => {
@@ -205,40 +226,18 @@ export default function BusDashboard() {
     }
   };
 
-  // 4. Load Google Maps Script
+  // 4. Load Google Maps
   useEffect(() => {
     if (!GOOGLE_MAPS_API_KEY) {
       setMapError("Missing Google Maps API Key");
       return;
     }
 
-    const initBusMap = () => {
-      initMap();
-    };
-
-    window.initBusMap = initBusMap;
-
-    if (window.google && window.google.maps) {
-      initMap();
-    } else {
-      const scriptId = 'google-maps-script';
-      if (!document.getElementById(scriptId)) {
-        const script = document.createElement("script");
-        script.id = scriptId;
-        script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&callback=initBusMap&v=weekly&libraries=marker`;
-        script.async = true;
-        script.defer = true;
-        script.onerror = () => setMapError("Failed to load Google Maps API");
-        document.head.appendChild(script);
-      } else {
-        if (window.google && window.google.maps) {
-          initMap();
-        }
-      }
-    }
+    loadGoogleMaps(GOOGLE_MAPS_API_KEY)
+      .then(() => initMap())
+      .catch(() => setMapError("Failed to load Google Maps API"));
 
     return () => {
-      delete window.initBusMap;
       // Cleanup markers
       if (markerRef.current) markerRef.current.setMap(null);
       stopMarkersRef.current.forEach(marker => marker.setMap(null));
@@ -252,8 +251,7 @@ export default function BusDashboard() {
     try {
       const { Map } = await window.google.maps.importLibrary("maps");
       
-      // Default center (Mysuru area)
-      const defaultCenter = { lat: 12.2958, lng: 76.6394 };
+      const defaultCenter = { lat: 12.3269, lng: 76.6331 }; // Mysuru (Vontikoppal)
       
       mapInstanceRef.current = new Map(mapRef.current, {
         center: busLocation || defaultCenter,
@@ -526,11 +524,18 @@ export default function BusDashboard() {
                       {/* Stop info */}
                       <div className="flex-1">
                         <p className="font-semibold text-white">{stop.name}</p>
-                        <p className="text-xs text-blue-200 mt-1">
-                          {index === 0 ? 'Starting point' : 
-                           index === routeStops.length - 1 ? 'Final destination' :
-                           `Stop ${index}`}
-                        </p>
+                        <div className="flex items-center gap-2 mt-1 flex-wrap">
+                          <p className="text-xs text-blue-200">
+                            {index === 0 ? 'Starting point' :
+                             index === routeStops.length - 1 ? 'Final destination' :
+                             `Stop ${index}`}
+                          </p>
+                          {stop.scheduledTime && (
+                            <span className="text-xs font-semibold text-yellow-300">
+                              🕐 {stop.scheduledTime}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
                   ))}

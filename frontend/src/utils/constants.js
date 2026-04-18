@@ -1,13 +1,13 @@
 // src/utils/constants.js
 
 export const DEMO_ROUTES = {
-  vvce_to_city_bus_stand: {
-    id: "vvce_to_city_bus_stand",
-    name: "VVCE → City Bus Stand",
-    busId: "BUS-101",
+  sub_urban_to_vvce_9912: {
+    id: "sub_urban_to_vvce_9912",
+    name: "Sub Urban → VVCE Mysuru",
+    busId: "Bus-9912",
     destination: {
-      lat: 12.3099, // Mysuru City Bus Stand
-      lng: 76.6550,
+      lat: 12.3394, // VVCE Mysuru (Main Gate)
+      lng: 76.6215,
     },
   },
 };

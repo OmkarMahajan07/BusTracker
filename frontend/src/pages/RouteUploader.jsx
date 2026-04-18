@@ -30,7 +30,7 @@ export default function RouteUploader() {
       >
         <h2 className="text-2xl font-bold mb-4">Upload Routes to Firebase</h2>
         <p className="text-blue-200 mb-6">
-          Click the button below to upload routes for BUS-101, BUS-102, and BUS-103 to your Firebase Realtime Database.
+          Click the button below to upload routes for Bus-9912, Bus-9915, and Bus-9918 to your Firebase Realtime Database.
         </p>
         
         <button
@@ -52,9 +52,12 @@ export default function RouteUploader() {
             <strong>Note:</strong> This will create routes at:
           </p>
           <ul className="text-xs text-blue-200 mt-2 space-y-1">
-            <li>• /routes/city_bus_stand_to_vvce (BUS-101)</li>
-            <li>• /routes/vvce_to_city_bus_stand (BUS-102)</li>
-            <li>• /routes/vvce_to_city_bus_stand_evening (BUS-103)</li>
+            <li>• /routes/sub_urban_to_vvce_9912 (Bus-9912 Morning)</li>
+            <li>• /routes/sub_urban_to_vvce_9915 (Bus-9915 Morning)</li>
+            <li>• /routes/sub_urban_to_vvce_9918 (Bus-9918 Morning)</li>
+            <li>• /routes/vvce_to_sub_urban_9912 (Bus-9912 Evening)</li>
+            <li>• /routes/vvce_to_sub_urban_9915 (Bus-9915 Evening)</li>
+            <li>• /routes/vvce_to_sub_urban_9918 (Bus-9918 Evening)</li>
           </ul>
         </div>
       </motion.div>
